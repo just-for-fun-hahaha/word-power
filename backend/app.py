@@ -6,13 +6,10 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from srt_analyzer import (
     analyze_youtube_subtitle,
-    analyze_srt_file,
-    analyze_txt_file,
     get_youtube_subtitles,
+    get_youtube_transcript_lines,
     get_learning_progress,
     get_learning_stats,
-    get_srt_files,
-    get_txt_files,
     get_unmastered_words,
     mark_word_mastered,
     unmark_word_mastered,
@@ -26,51 +23,6 @@ CORS(app)  # 允许跨域请求
 def health():
     """健康检查接口"""
     return jsonify({"status": "ok", "message": "Backend is running"})
-
-
-@app.route("/api/srt-files", methods=["GET"])
-def list_srt_files():
-    """获取所有SRT文件列表"""
-    try:
-        files = get_srt_files()
-        return jsonify({"status": "success", "files": files})
-    except Exception as e:
-        import traceback
-
-        error_detail = traceback.format_exc()
-        print(f"获取SRT文件列表时出错: {error_detail}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/analyze-srt", methods=["POST"])
-def analyze_srt():
-    """分析单个SRT文件"""
-    try:
-        data = request.get_json()
-        file_path = data.get("file_path")
-
-        if not file_path:
-            return (
-                jsonify({"status": "error", "message": "缺少file_path参数"}),
-                400,
-            )
-
-        results = analyze_srt_file(file_path)
-        return jsonify(
-            {
-                "status": "success",
-                "results": results,
-                "total_words": len(results),
-            }
-        )
-    except FileNotFoundError as e:
-        return jsonify({"status": "error", "message": str(e)}), 404
-    except Exception as e:
-        import traceback
-
-        error_detail = traceback.format_exc()
-        print(f"分析SRT文件时出错: {error_detail}")
-        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/api/mark-mastered", methods=["POST"])
@@ -150,51 +102,6 @@ def unmastered_words():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@app.route("/api/txt-files", methods=["GET"])
-def list_txt_files():
-    """获取所有TXT文件列表"""
-    try:
-        files = get_txt_files()
-        return jsonify({"status": "success", "files": files})
-    except Exception as e:
-        import traceback
-
-        error_detail = traceback.format_exc()
-        print(f"获取TXT文件列表时出错: {error_detail}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/analyze-txt", methods=["POST"])
-def analyze_txt():
-    """分析指定TXT文件，按顺序列出单词"""
-    try:
-        data = request.get_json()
-        file_path = data.get("file_path")
-
-        if not file_path:
-            return (
-                jsonify({"status": "error", "message": "缺少file_path参数"}),
-                400,
-            )
-
-        results = analyze_txt_file(file_path)
-        return jsonify(
-            {
-                "status": "success",
-                "results": results,
-                "total_words": len(results),
-            }
-        )
-    except FileNotFoundError as e:
-        return jsonify({"status": "error", "message": str(e)}), 404
-    except Exception as e:
-        import traceback
-
-        error_detail = traceback.format_exc()
-        print(f"分析TXT文件时出错: {error_detail}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
 @app.route("/api/youtube-subtitles", methods=["POST"])
 def youtube_subtitles():
     """解析YouTube视频字幕并返回英文人工字幕列表"""
@@ -260,6 +167,41 @@ def analyze_youtube_subtitle_api():
 
         error_detail = traceback.format_exc()
         print(f"分析YouTube字幕时出错: {error_detail}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/youtube-transcript-lines", methods=["POST"])
+def youtube_transcript_lines():
+    """获取YouTube字幕时间轴（用于播放器逐句播放）"""
+    try:
+        data = request.get_json() or {}
+        youtube_url = (data.get("youtube_url") or "").strip()
+        language_code = (data.get("language_code") or "").strip()
+
+        if not youtube_url:
+            return (
+                jsonify({"status": "error", "message": "缺少youtube_url参数"}),
+                400,
+            )
+        if not language_code:
+            return (
+                jsonify({"status": "error", "message": "缺少language_code参数"}),
+                400,
+            )
+
+        result = get_youtube_transcript_lines(youtube_url, language_code)
+        return jsonify({"status": "success", **result})
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except FileNotFoundError as e:
+        return jsonify({"status": "error", "message": str(e)}), 404
+    except RuntimeError as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    except Exception as e:
+        import traceback
+
+        error_detail = traceback.format_exc()
+        print(f"获取YouTube字幕时间轴时出错: {error_detail}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

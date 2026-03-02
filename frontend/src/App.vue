@@ -16,9 +16,23 @@
               首页
             </a-button>
             <a-button
+              type="default"
+              @click="currentPage = 'player'"
+              v-if="currentPage !== 'player' && !!playerVideoId"
+            >
+              播放器
+            </a-button>
+            <a-button
+              type="default"
+              @click="openTedPage"
+              v-if="currentPage !== 'ted'"
+            >
+              词汇分析
+            </a-button>
+            <a-button
               type="primary"
               @click="showStatsPage = true"
-              v-if="currentPage === 'srt' && !showStatsPage"
+              v-if="currentPage === 'ted' && !showStatsPage"
             >
               <template #icon>
                 <BarChartOutlined />
@@ -28,7 +42,7 @@
             <a-button
               type="default"
               @click="showStatsPage = false"
-              v-if="currentPage === 'srt' && showStatsPage"
+              v-if="currentPage === 'ted' && showStatsPage"
             >
               <template #icon>
                 <ArrowLeftOutlined />
@@ -40,336 +54,161 @@
 
         <a-layout-content class="main-content">
           <!-- ========== 首页 ========== -->
-          <div v-if="currentPage === 'home'" class="home-page">
-            <div class="home-title">
-              <h2>选择学习材料</h2>
-              <p>选择你要分析的字幕类型</p>
-            </div>
-            <div class="home-buttons">
-              <div class="home-card" @click="currentPage = 'srt'">
-                <div class="home-card-icon">🎬</div>
-                <div class="home-card-title">美剧字幕</div>
-                <div class="home-card-desc">分析 SRT 字幕文件词频，筛选高价值词汇</div>
-              </div>
-              <div class="home-card" @click="currentPage = 'ted'">
-                <div class="home-card-icon">🎤</div>
-                <div class="home-card-title">TED字幕</div>
-                <div class="home-card-desc">导入 TXT 文本，按顺序列出所有单词</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- ========== 美剧字幕页面 ========== -->
-          <div v-if="currentPage === 'srt'">
-          <!-- 统计页面 -->
-          <div v-if="showStatsPage" class="stats-page">
-            <div class="stats-header">
-              <h2>每日学习情况统计</h2>
-              <a-radio-group v-model:value="statsGranularity" @change="loadStatsData" button-style="solid">
-                <a-radio-button value="day">按天</a-radio-button>
-                <a-radio-button value="month">按月</a-radio-button>
-              </a-radio-group>
-            </div>
-            <div class="stats-charts-container">
-              <div class="stats-chart-item">
-                <h3>累积掌握词汇数量</h3>
-                <div ref="cumulativeChartContainer" style="width: 100%; height: 400px;"></div>
-              </div>
-              <div class="stats-chart-item">
-                <h3>每日新增词汇数量</h3>
-                <div ref="newWordsChartContainer" style="width: 100%; height: 400px;"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 主页面 -->
-          <div v-else class="content-wrapper">
-            <!-- 左侧：表格区域 -->
-            <div class="table-section">
-              <div class="section-header">
-                <h2>词频统计结果</h2>
-              </div>
-
-              <a-table
-                ref="tableRef"
-                :columns="columns"
-                :data-source="filteredResults"
-                :pagination="pagination"
-                :scroll="{ x: 'max-content', y: 'calc(100vh - 320px)' }"
-                row-key="word"
-                :loading="loading"
-                :row-class-name="(record) => (record.mastered ? 'mastered-row' : '')"
-                @change="handleTableChange"
+          <div v-if="currentPage === 'home'" class="home-player-page">
+            <div
+              class="home-player-entry"
+              :class="{ 'no-history': playerHistoryVideos.length === 0 }"
+            >
+              <div
+                v-if="playerHistoryVideos.length > 0"
+                class="home-entry-title"
               >
-                <template #headerCell="{ column }">
-                  <template v-if="column.key === 'word'">
-                    <div style="display: flex; align-items: center; gap: 8px">
-                      <a-button
-                        type="link"
-                        size="default"
-                        title="将当前页所有单词标记为烂熟于心"
-                        @click="markCurrentPageMastered"
-                        style="padding: 0; height: auto; font-size: 16px"
-                      >
-                        <CheckCircleOutlined style="color: #52c41a; font-size: 18px;" />
-                      </a-button>
-                      <span>单词</span>
-                    </div>
-                  </template>
-                </template>
-                <template #bodyCell="{ column, record, index }">
-                  <template v-if="column.key === 'index'">
-                    {{ index + 1 }}
-                  </template>
-                  <template v-if="column.key === 'word'">
-                    <div
-                      style="display: flex; align-items: center; gap: 8px"
-                      :style="record.mastered ? { opacity: 0.5 } : {}"
-                    >
-                      <a-button
-                        v-if="!record.mastered"
-                        type="text"
-                        size="small"
-                        title="标记为烂熟于心"
-                        @click="markWordMastered(record.word)"
-                        style="padding: 0; min-width: auto; flex-shrink: 0;"
-                      >
-                        <template #icon>
-                          <CheckCircleOutlined style="color: #52c41a" />
-                        </template>
-                      </a-button>
-                      <a-button
-                        v-else
-                        type="text"
-                        size="small"
-                        title="取消标记"
-                        @click="unmarkWordMastered(record.word)"
-                        style="padding: 0; min-width: auto; flex-shrink: 0;"
-                      >
-                        <template #icon>
-                          <CheckCircleFilled style="color: #999" />
-                        </template>
-                      </a-button>
-                      <strong style="font-size: 20px; font-weight: 600;">{{ record.word }}</strong>
-                    </div>
-                  </template>
-                  <template v-if="column.key === 'tags'">
-                    <a-tag
-                      v-for="tag in record.tags"
-                      :key="tag"
-                      :color="
-                        tag === '常用3000'
-                          ? 'green'
-                          : tag === '常用5000'
-                          ? 'blue'
-                          : tag === '常用10000'
-                          ? 'orange'
-                          : 'default'
-                      "
-                      style="cursor: pointer;"
-                      @click.stop="filterByTag(tag)"
-                      :style="
-                        selectedTagFilter === tag
-                          ? 'border: 2px solid #1890ff; font-weight: 600;'
-                          : ''
-                      "
-                    >
-                      {{ tag }}
-                    </a-tag>
-                    <span v-if="record.tags.length === 0" style="color: #ccc">-</span>
-                  </template>
-                </template>
-              </a-table>
+                <h2>YouTube 英语学习</h2>
+                <p>
+                  {{
+                    playerHistoryVideos.length === 0
+                      ? "粘贴视频链接后开始解析字幕"
+                      : "添加新视频，或从历史列表继续学习"
+                  }}
+                </p>
+              </div>
+              <div class="home-entry-row">
+                <a-input
+                  v-model:value="homeYoutubeUrl"
+                  placeholder="粘贴 YouTube 视频链接"
+                  :disabled="homeParseLoading"
+                  allow-clear
+                  @pressEnter="parseHomeVideo"
+                />
+                <a-button
+                  type="primary"
+                  :loading="homeParseLoading"
+                  :disabled="!homeYoutubeUrl.trim()"
+                  @click="parseHomeVideo"
+                >
+                  开始解析
+                </a-button>
+              </div>
+              <a-alert
+                v-if="homeError"
+                :message="homeError"
+                type="error"
+                show-icon
+                closable
+                @close="homeError = ''"
+                style="margin-top: 12px"
+              />
+              <div v-if="homeSubtitleOptions.length > 0" class="home-entry-next">
+                <a-select
+                  v-model:value="homeSelectedSubtitle"
+                  placeholder="选择英文人工字幕"
+                  style="width: min(280px, 100%)"
+                >
+                  <a-select-option
+                    v-for="subtitle in homeSubtitleOptions"
+                    :key="subtitle.language_code"
+                    :value="subtitle.language_code"
+                  >
+                    {{ subtitle.language }} ({{ subtitle.language_code }})
+                  </a-select-option>
+                </a-select>
+                <a-button
+                  type="primary"
+                  :disabled="!homeCanStartLearning"
+                  @click="startLearningFromHome"
+                >
+                  开始学习
+                </a-button>
+                <a-button
+                  :disabled="!homeCanStartLearning"
+                  @click="goToSubtitleAnalysisFromHome"
+                >
+                  字幕词汇分析
+                </a-button>
+              </div>
+              <div v-if="homeParsedTitle" class="home-entry-video-title">
+                视频：{{ homeParsedTitle }}
+              </div>
             </div>
 
-            <!-- 右侧：配置区域 -->
-            <div class="config-section">
+            <div v-if="playerHistoryVideos.length > 0" class="home-history-card">
               <div class="section-header">
-                <h2>分析与统计</h2>
+                <h2>已添加视频</h2>
+                <p>点击开始学习可直接进入播放器</p>
               </div>
-
-              <div class="config-content">
-                <a-alert
-                  v-if="error"
-                  :message="error"
-                  type="error"
-                  show-icon
-                  closable
-                  @close="error = ''"
-                  style="margin-bottom: 20px"
-                />
-
-                <!-- 上方左右布局：下拉框 + 学习进度 -->
-                <div class="config-top-section">
-                  <!-- 左侧：下拉框组 -->
-                  <div class="config-selects-group">
-                    <div class="section-header">
-                      <h2>选择材料</h2>
+              <div class="home-history-list">
+                <div
+                  v-for="item in playerHistoryVideos"
+                  :key="item.id"
+                  class="home-history-item"
+                >
+                  <div class="home-history-main">
+                    <div class="home-history-title">
+                      {{ item.title || item.url }}
                     </div>
-                    <div class="config-item-inline">
-                      <label>选择季：</label>
-                      <a-select
-                        v-model:value="selectedSeason"
-                        placeholder="请选择季"
-                        style="width: 200px"
-                        :disabled="loading"
-                        @change="handleSeasonChange"
-                      >
-                        <a-select-option
-                          v-for="dir in srtFiles"
-                          :key="dir.season"
-                          :value="dir.season"
-                        >
-                          {{ dir.season }}
-                        </a-select-option>
-                      </a-select>
-                    </div>
-
-                    <div class="config-item-inline">
-                      <label>选择集：</label>
-                      <a-select
-                        v-model:value="selectedFile"
-                        placeholder="请选择文件"
-                        style="width: 200px"
-                        :disabled="loading || !selectedSeason"
-                      >
-                        <a-select-option
-                          v-for="file in currentFiles"
-                          :key="file.path"
-                          :value="file.path"
-                        >
-                          {{ file.name }}
-                        </a-select-option>
-                      </a-select>
-                    </div>
-
+                    <div class="home-history-url">{{ item.url }}</div>
+                  </div>
+                  <div class="home-history-actions">
                     <a-button
                       type="primary"
-                      :loading="loading"
-                      :disabled="!selectedFile"
-                      @click="analyzeFile"
-                      size="large"
-                      class="analyze-button"
+                      size="small"
+                      @click="startLearningFromHistory(item)"
                     >
-                      开始分析
+                      开始学习
+                    </a-button>
+                    <a-button
+                      danger
+                      size="small"
+                      @click="removeHistoryVideo(item.id)"
+                    >
+                      删除
                     </a-button>
                   </div>
-
-                  <!-- 右侧：学习进度 -->
-                  <div class="learning-progress-section" v-if="learningProgress">
-                    <div class="section-header">
-                      <h2>学习进度（全局）</h2>
-                    </div>
-                    <div class="progress-content">
-                      <div
-                        class="progress-item"
-                        v-for="(progress, label) in learningProgress"
-                        :key="label"
-                        style="cursor: pointer;"
-                        @click="showUnmasteredWords(label, progress)"
-                      >
-                        <div class="progress-header">
-                          <span class="progress-label">常用{{ label }}</span>
-                          <span class="progress-percentage"
-                            >{{ progress.mastered }} / {{ progress.total }} ({{
-                              progress.percentage
-                            }}%)</span
-                          >
-                        </div>
-                        <a-progress
-                          :percent="progress.percentage"
-                          :stroke-color="
-                            label === '3000'
-                              ? '#52c41a'
-                              : label === '5000'
-                              ? '#1890ff'
-                              : '#fa8c16'
-                          "
-                          :show-info="false"
-                          size="small"
-                        />
-                      </div>
-                    </div>
-                  </div>
                 </div>
-
-                <!-- 下方：数据概览 -->
-                <div class="overview-section" v-if="results.length > 0">
-                  <div class="section-header">
-                    <h2>统计概览</h2>
-                  </div>
-                  <div class="overview-content">
-                    <div class="overview-item">
-                      <div class="overview-label">词数</div>
-                      <div class="overview-value">{{ totalWordCount }}</div>
-                    </div>
-                    <div class="overview-item">
-                      <div class="overview-label">词汇量（不重复）</div>
-                      <div class="overview-value">{{ uniqueWordCount }}</div>
-                    </div>
-                    <div class="overview-item">
-                      <div class="overview-label">烂熟于心</div>
-                      <div class="overview-value mastered-count">
-                        {{ masteredCount }}
-                      </div>
-                    </div>
-                    <div class="overview-item" v-if="tagCounts.common3000.total > 0">
-                      <div class="overview-label">常用3000</div>
-                      <div class="overview-value">
-                        <span class="value-unmastered">{{
-                          tagCounts.common3000.unmastered
-                        }}</span>
-                        <span class="value-detail"
-                          >（总<span class="value-total">{{ tagCounts.common3000.total }}</span
-                          >熟<span class="value-mastered">{{ tagCounts.common3000.mastered }}</span>）</span
-                        >
-                      </div>
-                    </div>
-                    <div class="overview-item" v-if="tagCounts.common5000.total > 0">
-                      <div class="overview-label">常用5000</div>
-                      <div class="overview-value">
-                        <span class="value-unmastered">{{
-                          tagCounts.common5000.unmastered
-                        }}</span>
-                        <span class="value-detail"
-                          >（总<span class="value-total">{{ tagCounts.common5000.total }}</span
-                          >熟<span class="value-mastered">{{ tagCounts.common5000.mastered }}</span>）</span
-                        >
-                      </div>
-                    </div>
-                    <div class="overview-item" v-if="tagCounts.common10000.total > 0">
-                      <div class="overview-label">常用10000</div>
-                      <div class="overview-value">
-                        <span class="value-unmastered">{{
-                          tagCounts.common10000.unmastered
-                        }}</span>
-                        <span class="value-detail"
-                          >（总<span class="value-total">{{ tagCounts.common10000.total }}</span
-                          >熟<span class="value-mastered">{{ tagCounts.common10000.mastered }}</span>）</span
-                        >
-                      </div>
-                    </div>
-                    <div class="overview-item" v-if="tagCounts.nonCommon.total > 0">
-                      <div class="overview-label">非10000内</div>
-                      <div class="overview-value">
-                        <span class="value-unmastered">{{ tagCounts.nonCommon.unmastered }}</span>
-                        <span class="value-detail"
-                          >（总<span class="value-total">{{ tagCounts.nonCommon.total }}</span
-                          >熟<span class="value-mastered">{{ tagCounts.nonCommon.mastered }}</span>）</span
-                        >
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 预留其他配置选项的位置 -->
               </div>
             </div>
-          </div>
+
+            <div
+              v-if="playerHistoryVideos.length > 0 || homeSubtitleOptions.length > 0"
+              class="home-extension-actions"
+            >
+              <a-button @click="openTedPage">词汇分析</a-button>
+            </div>
           </div>
 
           <!-- ========== TED字幕页面 ========== -->
-          <div v-if="currentPage === 'ted'" class="content-wrapper">
+          <div v-if="currentPage === 'ted'">
+            <div v-if="showStatsPage" class="stats-page">
+              <div class="stats-header">
+                <h2>每日学习情况统计</h2>
+                <a-radio-group
+                  v-model:value="statsGranularity"
+                  @change="loadStatsData"
+                  button-style="solid"
+                >
+                  <a-radio-button value="day">按天</a-radio-button>
+                  <a-radio-button value="month">按月</a-radio-button>
+                </a-radio-group>
+              </div>
+              <div class="stats-charts-container">
+                <div class="stats-chart-item">
+                  <h3>累积掌握词汇数量</h3>
+                  <div
+                    ref="cumulativeChartContainer"
+                    style="width: 100%; height: 400px;"
+                  ></div>
+                </div>
+                <div class="stats-chart-item">
+                  <h3>每日新增词汇数量</h3>
+                  <div
+                    ref="newWordsChartContainer"
+                    style="width: 100%; height: 400px;"
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="content-wrapper">
             <!-- 左侧：表格区域 -->
             <div class="table-section">
               <div class="section-header">
@@ -416,7 +255,7 @@
                         type="text"
                         size="small"
                         title="标记为烂熟于心"
-                        @click="markWordMastered(record.word, 'ted')"
+                        @click="markWordMastered(record.word)"
                         style="padding: 0; min-width: auto; flex-shrink: 0;"
                       >
                         <template #icon>
@@ -428,7 +267,7 @@
                         type="text"
                         size="small"
                         title="取消标记"
-                        @click="unmarkWordMastered(record.word, 'ted')"
+                        @click="unmarkWordMastered(record.word)"
                         style="padding: 0; min-width: auto; flex-shrink: 0;"
                       >
                         <template #icon>
@@ -487,89 +326,58 @@
                 <div class="config-top-section">
                   <div class="config-selects-group">
                     <div class="section-header">
-                      <h2>选择材料</h2>
-                    </div>
-                    <div class="config-item-inline">
-                      <label>来源：</label>
-                      <a-radio-group
-                        v-model:value="tedSourceType"
-                        :disabled="tedLoading || youtubeLoading"
-                        button-style="solid"
-                      >
-                        <a-radio-button value="txt">本地TXT</a-radio-button>
-                        <a-radio-button value="youtube">YouTube链接</a-radio-button>
-                      </a-radio-group>
+                      <h2>YouTube 字幕</h2>
                     </div>
 
-                    <div v-if="tedSourceType === 'txt'" class="config-item-inline">
-                      <label>选择文件：</label>
-                      <a-select
-                        v-model:value="selectedTxtFile"
-                        placeholder="请选择TXT文件"
+                    <div class="config-item-inline">
+                      <label>YouTube：</label>
+                      <a-input
+                        v-model:value="youtubeUrl"
+                        placeholder="粘贴YouTube视频链接"
                         style="width: 320px"
                         :disabled="tedLoading || youtubeLoading"
+                        allow-clear
+                      />
+                    </div>
+
+                    <a-button
+                      type="default"
+                      :loading="youtubeLoading"
+                      :disabled="tedLoading || !youtubeUrl.trim()"
+                      @click="loadYoutubeSubtitles"
+                      style="width: 320px"
+                    >
+                      解析字幕列表
+                    </a-button>
+
+                    <div class="config-item-inline">
+                      <label>英文字幕：</label>
+                      <a-select
+                        v-model:value="selectedYoutubeSubtitle"
+                        placeholder="请选择英文人工字幕"
+                        style="width: 320px"
+                        :disabled="
+                          tedLoading ||
+                          youtubeLoading ||
+                          youtubeSubtitles.length === 0
+                        "
                       >
                         <a-select-option
-                          v-for="file in txtFiles"
-                          :key="file.path"
-                          :value="file.path"
+                          v-for="subtitle in youtubeSubtitles"
+                          :key="subtitle.language_code"
+                          :value="subtitle.language_code"
                         >
-                          {{ file.name }}
+                          {{ subtitle.language }} ({{ subtitle.language_code }})
                         </a-select-option>
                       </a-select>
                     </div>
 
-                    <template v-else>
-                      <div class="config-item-inline">
-                        <label>YouTube：</label>
-                        <a-input
-                          v-model:value="youtubeUrl"
-                          placeholder="粘贴YouTube视频链接"
-                          style="width: 320px"
-                          :disabled="tedLoading || youtubeLoading"
-                          allow-clear
-                        />
-                      </div>
-
-                      <a-button
-                        type="default"
-                        :loading="youtubeLoading"
-                        :disabled="tedLoading || !youtubeUrl.trim()"
-                        @click="loadYoutubeSubtitles"
-                        style="width: 320px"
-                      >
-                        解析字幕列表
-                      </a-button>
-
-                      <div class="config-item-inline">
-                        <label>英文字幕：</label>
-                        <a-select
-                          v-model:value="selectedYoutubeSubtitle"
-                          placeholder="请选择英文人工字幕"
-                          style="width: 320px"
-                          :disabled="
-                            tedLoading ||
-                            youtubeLoading ||
-                            youtubeSubtitles.length === 0
-                          "
-                        >
-                          <a-select-option
-                            v-for="subtitle in youtubeSubtitles"
-                            :key="subtitle.language_code"
-                            :value="subtitle.language_code"
-                          >
-                            {{ subtitle.language }} ({{ subtitle.language_code }})
-                          </a-select-option>
-                        </a-select>
-                      </div>
-
-                      <div
-                        v-if="youtubeVideoTitle"
-                        style="color: #666; font-size: 13px; line-height: 1.5"
-                      >
-                        视频：{{ youtubeVideoTitle }}
-                      </div>
-                    </template>
+                    <div
+                      v-if="youtubeVideoTitle"
+                      style="color: #666; font-size: 13px; line-height: 1.5"
+                    >
+                      视频：{{ youtubeVideoTitle }}
+                    </div>
 
                     <a-button
                       type="primary"
@@ -682,6 +490,146 @@
               </div>
             </div>
           </div>
+          </div>
+
+          <!-- ========== 英语播放器页面 ========== -->
+          <div v-if="currentPage === 'player'" class="player-page">
+            <div class="player-toolbar" v-if="playerVideoTitle">
+              <div v-if="playerVideoTitle" class="player-toolbar-title">
+                {{ playerVideoTitle }}
+              </div>
+            </div>
+
+            <a-alert
+              v-if="playerError"
+              :message="playerError"
+              type="error"
+              show-icon
+              closable
+              @close="playerError = ''"
+              style="margin-bottom: 16px"
+            />
+
+            <div class="player-content">
+              <div class="player-video-panel">
+                <div class="section-header">
+                  <h2>视频播放</h2>
+                  <p>
+                    点击右侧字幕句子即可跳转播放，当前时间：
+                    {{ formatSubtitleTime(playerCurrentTime) }}
+                  </p>
+                </div>
+                <div class="player-video-wrapper">
+                  <div id="english-learning-player"></div>
+                </div>
+              </div>
+
+              <div class="player-subtitle-panel">
+                <div class="section-header">
+                  <h2>英文字幕</h2>
+                  <p v-if="playerTranscriptLines.length > 0">
+                    共 {{ playerTranscriptLines.length }} 句
+                  </p>
+                  <p v-else>先解析字幕并加载播放器</p>
+                </div>
+
+                <div
+                  v-if="playerTranscriptLines.length > 0"
+                  class="player-subtitle-controls"
+                >
+                  <a-button @click="playPrevSubtitle" :disabled="!canJumpSubtitle">
+                    上一句
+                  </a-button>
+                  <a-button
+                    type="primary"
+                    @click="togglePlayerPlayPause"
+                    :disabled="!canControlPlayback"
+                  >
+                    {{ playerIsPlaying ? "暂停" : "播放" }}
+                  </a-button>
+                  <a-button @click="playNextSubtitle" :disabled="!canJumpSubtitle">
+                    下一句
+                  </a-button>
+                  <a-button
+                    :type="playerAbSelectionMode ? 'primary' : 'default'"
+                    @click="toggleAbSelectionMode"
+                  >
+                    AB播放
+                  </a-button>
+                  <a-button
+                    type="dashed"
+                    :loading="tedLoading"
+                    :disabled="!canAnalyzeCurrentPlayerSubtitle"
+                    @click="analyzeCurrentSubtitleVocabulary"
+                  >
+                    词汇分析
+                  </a-button>
+                  <span v-if="playerAbSelectionMode" class="player-ab-hint">
+                    请选择两句作为 A / B（再次点击 AB 按钮可退出）
+                  </span>
+                  <span
+                    v-else-if="canPlayAbRange"
+                    class="player-ab-hint"
+                  >
+                    A {{ formatSubtitleTime(playerTranscriptLines[playerAbStartIndex]?.start) }}
+                    · B {{ formatSubtitleTime(playerTranscriptLines[playerAbEndIndex]?.start) }}
+                  </span>
+                </div>
+
+                <div
+                  v-if="playerTranscriptLoading"
+                  style="height: 100%; display: flex; justify-content: center; align-items: center;"
+                >
+                  <a-spin size="large" />
+                </div>
+
+                <div
+                  v-else-if="playerTranscriptLines.length === 0"
+                  class="player-subtitle-empty"
+                >
+                  暂无字幕内容
+                </div>
+
+                <div
+                  v-else
+                  ref="playerSubtitleListRef"
+                  class="player-subtitle-list"
+                >
+                  <div
+                    v-for="(line, idx) in playerTranscriptLines"
+                    :key="`${line.start}-${idx}`"
+                    :data-sub-index="idx"
+                    class="player-subtitle-item"
+                    :class="{
+                      active: idx === activePlayerSubtitleIndex,
+                      'in-ab-range': isIndexInAbRange(idx),
+                      'unknown-line': hasUnknownWordsInLine(idx),
+                      'ab-select-mode': playerAbSelectionMode,
+                    }"
+                    @click="handleSubtitleLineClick(line, idx)"
+                  >
+                    <div
+                      v-if="playerAbSelectionMode"
+                      class="player-ab-select-cell"
+                      @click.stop
+                    >
+                      <a-checkbox
+                        :checked="isAbCandidate(idx)"
+                        @change="toggleAbCandidate(idx)"
+                      />
+                    </div>
+                    <div class="player-subtitle-time">
+                      {{ formatSubtitleTime(line.start) }}
+                    </div>
+                    <div
+                      class="player-subtitle-text"
+                      v-html="renderSubtitleTextWithUnknownWords(line.text)"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
         </a-layout-content>
       </a-layout>
@@ -775,11 +723,28 @@ import { message, Modal } from "ant-design-vue";
 const locale = zhCN;
 
 // 页面导航状态
-const currentPage = ref("home"); // 'home' | 'srt' | 'ted'
+const currentPage = ref("home"); // 'home' | 'ted' | 'player'
+let youtubeIframeApiPromise = null;
+let englishPlayerInstance = null;
+let englishPlayerTimer = null;
+const PLAYER_HISTORY_STORAGE_KEY = "word_power_player_history_v1";
+const homeYoutubeUrl = ref("");
+const homeParseLoading = ref(false);
+const homeError = ref("");
+const homeParsedUrl = ref("");
+const homeParsedTitle = ref("");
+const homeParsedVideoId = ref("");
+const homeSubtitleOptions = ref([]);
+const homeSelectedSubtitle = ref("");
 
 function goHome() {
   currentPage.value = "home";
   showStatsPage.value = false;
+}
+
+function openTedPage() {
+  showStatsPage.value = false;
+  currentPage.value = "ted";
 }
 
 // 统计页面相关状态
@@ -790,163 +755,11 @@ const newWordsChartContainer = ref(null);
 let cumulativeChartInstance = null;
 let newWordsChartInstance = null;
 
-const columns = [
-  {
-    title: "序号",
-    key: "index",
-    width: 80,
-    align: "left",
-  },
-  {
-    title: "单词",
-    dataIndex: "word",
-    key: "word",
-    width: 200,
-    fixed: "left",
-    align: "left",
-  },
-  {
-    title: "全剧词频",
-    dataIndex: "frequency",
-    key: "frequency",
-    width: 120,
-    align: "left",
-    sorter: (a, b) => a.frequency - b.frequency,
-  },
-  {
-    title: "本集词频",
-    dataIndex: "count",
-    key: "count",
-    width: 120,
-    align: "left",
-    sorter: (a, b) => a.count - b.count,
-  },
-  {
-    title: "标签",
-    key: "tags",
-    width: 150,
-    align: "left",
-  },
-];
-
-const srtFiles = ref([]);
-const selectedSeason = ref("");
-const selectedFile = ref("");
-const results = ref([]);
-const totalWords = ref(0);
-const loading = ref(false);
-const error = ref("");
-const tableRef = ref(null);
 const learningProgress = ref(null); // 学习进度数据
-const pagination = ref({
-  current: 1,
-  pageSize: 20,
-  showSizeChanger: true,
-  pageSizeOptions: ["10", "20", "50", "100"],
-  showTotal: (total) => `共 ${total} 条`,
-});
-
-// 标签过滤
-const selectedTagFilter = ref(null); // null表示不过滤，可以是 "常用3000", "常用5000", "常用10000", "非10000内"
-
-// 过滤后的结果
-const filteredResults = computed(() => {
-  if (!selectedTagFilter.value) {
-    return results.value;
-  }
-  
-  if (selectedTagFilter.value === "非10000内") {
-    return results.value.filter((item) => {
-      return (
-        !item.tags.includes("常用3000") &&
-        !item.tags.includes("常用5000") &&
-        !item.tags.includes("常用10000")
-      );
-    });
-  }
-  
-  return results.value.filter((item) =>
-    item.tags.includes(selectedTagFilter.value)
-  );
-});
-
-const currentFiles = computed(() => {
-  const season = srtFiles.value.find(
-    (dir) => dir.season === selectedSeason.value
-  );
-  return season ? season.files : [];
-});
-
-// 统计数据
-const totalWordCount = computed(() => {
-  return results.value.reduce((sum, item) => sum + item.count, 0);
-});
-
-const uniqueWordCount = computed(() => {
-  return results.value.length;
-});
-
-const masteredCount = computed(() => {
-  return results.value.filter((item) => item.mastered).length;
-});
-
-const unmasteredCount = computed(() => {
-  return results.value.filter((item) => !item.mastered).length;
-});
-
-const tagCounts = computed(() => {
-  const counts = {
-    common3000: { total: 0, mastered: 0, unmastered: 0 },
-    common5000: { total: 0, mastered: 0, unmastered: 0 },
-    common10000: { total: 0, mastered: 0, unmastered: 0 },
-    nonCommon: { total: 0, mastered: 0, unmastered: 0 },
-  };
-  results.value.forEach((item) => {
-    // 判断是否在常用词表中
-    const isInCommonList =
-      item.tags.includes("常用3000") ||
-      item.tags.includes("常用5000") ||
-      item.tags.includes("常用10000");
-
-    if (item.tags.includes("常用3000")) {
-      counts.common3000.total++;
-      if (item.mastered) {
-        counts.common3000.mastered++;
-      } else {
-        counts.common3000.unmastered++;
-      }
-    }
-    if (item.tags.includes("常用5000")) {
-      counts.common5000.total++;
-      if (item.mastered) {
-        counts.common5000.mastered++;
-      } else {
-        counts.common5000.unmastered++;
-      }
-    }
-    if (item.tags.includes("常用10000")) {
-      counts.common10000.total++;
-      if (item.mastered) {
-        counts.common10000.mastered++;
-      } else {
-        counts.common10000.unmastered++;
-      }
-    }
-    // 非10000内的词（不在任何常用词表中）
-    if (!isInCommonList) {
-      counts.nonCommon.total++;
-      if (item.mastered) {
-        counts.nonCommon.mastered++;
-      } else {
-        counts.nonCommon.unmastered++;
-      }
-    }
-  });
-  return counts;
-});
 
 onMounted(async () => {
-  await Promise.all([loadSrtFiles(), loadTxtFiles(), loadLearningProgress()]);
+  await loadLearningProgress();
+  loadPlayerHistory();
 });
 
 // 监听统计页面显示状态，自动加载数据
@@ -1152,6 +965,7 @@ onUnmounted(() => {
     newWordsChartInstance.dispose();
     newWordsChartInstance = null;
   }
+  destroyEnglishPlayer();
 });
 
 async function loadLearningProgress() {
@@ -1169,29 +983,6 @@ async function loadLearningProgress() {
   } catch (err) {
     console.error("加载学习进度失败:", err);
   }
-}
-
-function handleSeasonChange() {
-  selectedFile.value = "";
-  results.value = [];
-  selectedTagFilter.value = null;
-  pagination.value.current = 1;
-}
-
-function handleTableChange(pag) {
-  pagination.value.current = pag.current;
-  pagination.value.pageSize = pag.pageSize;
-}
-
-function filterByTag(tag) {
-  if (selectedTagFilter.value === tag) {
-    // 如果点击的是已选中的标签，则取消过滤
-    selectedTagFilter.value = null;
-  } else {
-    selectedTagFilter.value = tag;
-  }
-  // 重置到第一页
-  pagination.value.current = 1;
 }
 
 // 未学习单词弹框相关
@@ -1296,75 +1087,7 @@ async function showUnmasteredWords(label, progress) {
   }
 }
 
-async function loadSrtFiles() {
-  try {
-    const response = await fetch("/api/srt-files");
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    const data = await response.json();
-    if (data.status === "success") {
-      srtFiles.value = data.files;
-    } else {
-      error.value = "加载文件列表失败: " + (data.message || "未知错误");
-    }
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    error.value = "无法连接到服务器: " + errorMsg;
-    console.error("加载SRT文件列表失败:", err);
-  }
-}
-
-async function analyzeFile() {
-  if (!selectedFile.value) {
-    return;
-  }
-
-  loading.value = true;
-  error.value = "";
-  results.value = [];
-
-  try {
-    const response = await fetch("/api/analyze-srt", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        file_path: selectedFile.value,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    if (data.status === "success") {
-      results.value = data.results.map((item) => ({
-        ...item,
-        frequency: item.frequency || 0,
-        mastered: item.mastered || false,
-        mastered_date: item.mastered_date || "",
-      }));
-      totalWords.value = data.total_words;
-      // 重置过滤和分页
-      selectedTagFilter.value = null;
-      pagination.value.current = 1;
-    } else {
-      error.value = "分析失败: " + (data.message || "未知错误");
-    }
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    error.value = "请求失败: " + errorMsg;
-    console.error("分析文件失败:", err);
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function markWordMastered(word, source = 'srt') {
+async function markWordMastered(word) {
   try {
     const response = await fetch("/api/mark-mastered", {
       method: "POST",
@@ -1378,29 +1101,13 @@ async function markWordMastered(word, source = 'srt') {
 
     if (data.status === "success") {
       message.success("已标记为烂熟于心");
-      if (source === 'ted') {
-        // 更新TED结果
-        const item = tedResults.value.find((r) => r.word === word);
-        if (item) {
-          item.mastered = true;
-          item.mastered_date = new Date().toISOString().split("T")[0];
-          const unmastered = tedResults.value.filter((r) => !r.mastered);
-          const mastered = tedResults.value.filter((r) => r.mastered);
-          tedResults.value = [...unmastered, ...mastered];
-        }
-      } else {
-        // 更新SRT结果
-        const item = results.value.find((r) => r.word === word);
-        if (item) {
-          item.mastered = true;
-          item.mastered_date = new Date().toISOString().split("T")[0];
-          results.value.sort((a, b) => {
-            if (a.mastered !== b.mastered) {
-              return a.mastered ? 1 : -1;
-            }
-            return b.frequency - a.frequency;
-          });
-        }
+      const item = tedResults.value.find((r) => r.word === word);
+      if (item) {
+        item.mastered = true;
+        item.mastered_date = new Date().toISOString().split("T")[0];
+        const unmastered = tedResults.value.filter((r) => !r.mastered);
+        const mastered = tedResults.value.filter((r) => r.mastered);
+        tedResults.value = [...unmastered, ...mastered];
       }
       // 如果是在未学习单词弹框中标记，将单词添加到已标记集合（保留在原位，置灰显示）
       if (unmasteredWordsModal.value.visible) {
@@ -1416,7 +1123,7 @@ async function markWordMastered(word, source = 'srt') {
   }
 }
 
-async function unmarkWordMastered(word, source = 'srt') {
+async function unmarkWordMastered(word) {
   try {
     const response = await fetch("/api/unmark-mastered", {
       method: "POST",
@@ -1430,27 +1137,13 @@ async function unmarkWordMastered(word, source = 'srt') {
 
     if (data.status === "success") {
       message.success("已取消标记");
-      if (source === 'ted') {
-        const item = tedResults.value.find((r) => r.word === word);
-        if (item) {
-          item.mastered = false;
-          item.mastered_date = "";
-          const unmastered = tedResults.value.filter((r) => !r.mastered);
-          const mastered = tedResults.value.filter((r) => r.mastered);
-          tedResults.value = [...unmastered, ...mastered];
-        }
-      } else {
-        const item = results.value.find((r) => r.word === word);
-        if (item) {
-          item.mastered = false;
-          item.mastered_date = "";
-          results.value.sort((a, b) => {
-            if (a.mastered !== b.mastered) {
-              return a.mastered ? 1 : -1;
-            }
-            return b.frequency - a.frequency;
-          });
-        }
+      const item = tedResults.value.find((r) => r.word === word);
+      if (item) {
+        item.mastered = false;
+        item.mastered_date = "";
+        const unmastered = tedResults.value.filter((r) => !r.mastered);
+        const mastered = tedResults.value.filter((r) => r.mastered);
+        tedResults.value = [...unmastered, ...mastered];
       }
       // 刷新学习进度
       await loadLearningProgress();
@@ -1460,176 +1153,6 @@ async function unmarkWordMastered(word, source = 'srt') {
   } catch (err) {
     message.error("请求失败: " + err.message);
   }
-}
-
-function markCurrentPageMastered() {
-  if (!results.value.length) {
-    return;
-  }
-
-  // 获取当前页的数据
-  const currentPage = pagination.value.current || 1;
-  const pageSize = pagination.value.pageSize || 20;
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  
-  // 获取当前页的数据（只标记未标记的）
-  const initialWords = results.value
-    .slice(startIndex, endIndex)
-    .filter((item) => !item.mastered);
-
-  if (initialWords.length === 0) {
-    message.info("当前页没有未标记的单词");
-    return;
-  }
-
-  // 创建响应式的单词列表（存储单词的完整对象）
-  const wordsToMark = ref([...initialWords]);
-  let modalInstance = null;
-
-  // 创建更新内容的函数
-  const createContent = () => {
-    return h("div", [
-      h("p", { style: "margin-bottom: 12px" }, [
-        `将要标记 `,
-        h("strong", { style: "color: #1890ff" }, wordsToMark.value.length),
-        ` 个单词：`,
-      ]),
-      h(
-        "div",
-        {
-          style:
-            "max-height: 300px; overflow-y: auto; border: 1px solid #d9d9d9; border-radius: 4px; padding: 12px; background: #fafafa",
-        },
-        [
-          wordsToMark.value.length === 0
-            ? h("p", { style: "color: #999; text-align: center; padding: 20px" }, "已移除所有单词")
-            : h(
-                "div",
-                {
-                  style:
-                    "display: flex; flex-wrap: wrap; gap: 8px; line-height: 1.8",
-                },
-                wordsToMark.value.map((item) =>
-                  h(
-                    "span",
-                    {
-                      key: item.word,
-                      style:
-                        "display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #fff; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px",
-                    },
-                    [
-                      item.word,
-                      h(
-                        "span",
-                        {
-                          style:
-                            "cursor: pointer; color: #999; display: inline-flex; align-items: center; padding: 2px; transition: color 0.2s",
-                          onMouseenter: (e) => {
-                            e.target.style.color = "#ff4d4f";
-                          },
-                          onMouseleave: (e) => {
-                            e.target.style.color = "#999";
-                          },
-                          onClick: () => {
-                            // 从列表中移除该单词
-                            const wordIndex = wordsToMark.value.findIndex((w) => w.word === item.word);
-                            if (wordIndex > -1) {
-                              wordsToMark.value.splice(wordIndex, 1);
-                              // 重新创建 Modal 以更新显示
-                              if (modalInstance) {
-                                Modal.destroyAll();
-                                modalInstance = Modal.confirm({
-                                  title: "确认标记为烂熟于心",
-                                  width: 500,
-                                  content: createContent(),
-                                  okText: "确认标记",
-                                  cancelText: "取消",
-                                  onOk: handleOk,
-                                });
-                              }
-                            }
-                          },
-                        },
-                        [h(CloseOutlined, { style: "font-size: 12px" })]
-                      ),
-                    ]
-                  )
-                ),
-              ),
-        ]
-      ),
-    ]);
-  };
-
-  // 处理确认标记
-  const handleOk = async () => {
-    // 如果所有单词都被删除了，提示用户
-    if (wordsToMark.value.length === 0) {
-      message.info("没有要标记的单词");
-      return;
-    }
-
-    // 批量标记
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const item of wordsToMark.value) {
-      try {
-        const response = await fetch("/api/mark-mastered", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ word: item.word }),
-        });
-
-        const data = await response.json();
-
-        if (data.status === "success") {
-          // 在results中找到对应的项并更新
-          const resultItem = results.value.find((r) => r.word === item.word);
-          if (resultItem) {
-            resultItem.mastered = true;
-            resultItem.mastered_date = new Date().toISOString().split("T")[0];
-          }
-          successCount++;
-        } else {
-          failCount++;
-        }
-      } catch (err) {
-        failCount++;
-      }
-    }
-
-    // 重新排序：已标记的排到最后
-    results.value.sort((a, b) => {
-      if (a.mastered !== b.mastered) {
-        return a.mastered ? 1 : -1;
-      }
-      return b.frequency - a.frequency;
-    });
-
-    // 刷新学习进度
-    await loadLearningProgress();
-
-    if (successCount > 0) {
-      message.success(`成功标记 ${successCount} 个单词为烂熟于心`);
-    }
-    if (failCount > 0) {
-      message.warning(`${failCount} 个单词标记失败`);
-    }
-  };
-
-  // 显示确认对话框
-  modalInstance = Modal.confirm({
-    title: "确认标记为烂熟于心",
-    width: 500,
-    content: createContent(),
-    okText: "确认标记",
-    cancelText: "取消",
-    onOk: handleOk,
-  });
 }
 
 // ========== TED字幕页面相关 ==========
@@ -1657,9 +1180,6 @@ const tedColumns = [
   },
 ];
 
-const txtFiles = ref([]);
-const tedSourceType = ref("txt");
-const selectedTxtFile = ref("");
 const youtubeUrl = ref("");
 const parsedYoutubeUrl = ref("");
 const youtubeVideoTitle = ref("");
@@ -1669,6 +1189,11 @@ const youtubeLoading = ref(false);
 const tedResults = ref([]);
 const tedLoading = ref(false);
 const tedError = ref("");
+const lastTedAnalysisMeta = ref({
+  source: "",
+  youtube_url: "",
+  language_code: "",
+});
 const tedSelectedTagFilter = ref(null);
 const tedPagination = ref({
   current: 1,
@@ -1679,21 +1204,11 @@ const tedPagination = ref({
 });
 
 const tedCanAnalyze = computed(() => {
-  if (tedSourceType.value === "txt") {
-    return !!selectedTxtFile.value;
-  }
   return (
     !!youtubeUrl.value.trim() &&
     youtubeUrl.value.trim() === parsedYoutubeUrl.value &&
     !!selectedYoutubeSubtitle.value
   );
-});
-
-watch(tedSourceType, () => {
-  tedError.value = "";
-  tedResults.value = [];
-  tedSelectedTagFilter.value = null;
-  tedPagination.value.current = 1;
 });
 
 watch(youtubeUrl, (newUrl) => {
@@ -1762,25 +1277,6 @@ const tedTagCounts = computed(() => {
   return counts;
 });
 
-async function loadTxtFiles() {
-  try {
-    const response = await fetch("/api/txt-files");
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    const data = await response.json();
-    if (data.status === "success") {
-      txtFiles.value = data.files;
-    } else {
-      tedError.value = "加载文件列表失败: " + (data.message || "未知错误");
-    }
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    tedError.value = "无法连接到服务器: " + errorMsg;
-    console.error("加载TXT文件列表失败:", err);
-  }
-}
-
 async function loadYoutubeSubtitles() {
   const url = youtubeUrl.value.trim();
   if (!url) {
@@ -1844,24 +1340,15 @@ async function analyzeTedFile() {
   tedResults.value = [];
 
   try {
-    const endpoint =
-      tedSourceType.value === "txt"
-        ? "/api/analyze-txt"
-        : "/api/analyze-youtube-subtitle";
-    const payload =
-      tedSourceType.value === "txt"
-        ? { file_path: selectedTxtFile.value }
-        : {
-            youtube_url: youtubeUrl.value.trim(),
-            language_code: selectedYoutubeSubtitle.value,
-          };
-
-    const response = await fetch(endpoint, {
+    const response = await fetch("/api/analyze-youtube-subtitle", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        youtube_url: youtubeUrl.value.trim(),
+        language_code: selectedYoutubeSubtitle.value,
+      }),
     });
 
     if (!response.ok) {
@@ -1876,6 +1363,11 @@ async function analyzeTedFile() {
         mastered: item.mastered || false,
         mastered_date: item.mastered_date || "",
       }));
+      lastTedAnalysisMeta.value = {
+        source: "youtube",
+        youtube_url: youtubeUrl.value.trim(),
+        language_code: selectedYoutubeSubtitle.value,
+      };
       tedSelectedTagFilter.value = null;
       tedPagination.value.current = 1;
     } else {
@@ -2046,6 +1538,907 @@ function markTedCurrentPageMastered() {
     onOk: handleOk,
   });
 }
+
+// ========== 英语播放器页面相关 ==========
+
+const playerYoutubeUrl = ref("");
+const playerParsedYoutubeUrl = ref("");
+const playerVideoId = ref("");
+const playerVideoTitle = ref("");
+const playerSubtitleOptions = ref([]);
+const playerSelectedSubtitle = ref("");
+const playerHistoryVideos = ref([]);
+const playerMetaLoading = ref(false);
+const playerTranscriptLoading = ref(false);
+const playerError = ref("");
+const playerTranscriptLines = ref([]);
+const playerCurrentTime = ref(0);
+const playerSubtitleListRef = ref(null);
+const playerAbStartIndex = ref(-1);
+const playerAbEndIndex = ref(-1);
+const playerAbSelectionMode = ref(false);
+const playerAbSelectionCandidates = ref([]);
+const playerIsPlaying = ref(false);
+const playerPlaybackTarget = ref(null);
+
+const playerCanLoadTranscript = computed(() => {
+  return (
+    !!playerVideoId.value &&
+    !!playerSelectedSubtitle.value &&
+    playerYoutubeUrl.value.trim() === playerParsedYoutubeUrl.value
+  );
+});
+
+const canPlayAbRange = computed(() => {
+  return (
+    playerAbStartIndex.value >= 0 &&
+    playerAbEndIndex.value >= 0 &&
+    playerAbStartIndex.value < playerTranscriptLines.value.length &&
+    playerAbEndIndex.value < playerTranscriptLines.value.length
+  );
+});
+
+const canControlPlayback = computed(() => {
+  return playerTranscriptLines.value.length > 0;
+});
+
+const canJumpSubtitle = computed(() => {
+  return playerTranscriptLines.value.length > 0;
+});
+
+const canAnalyzeCurrentPlayerSubtitle = computed(() => {
+  return !!playerParsedYoutubeUrl.value && !!playerSelectedSubtitle.value;
+});
+
+const playerUnknownWordsFromTedAnalysis = computed(() => {
+  if (
+    lastTedAnalysisMeta.value.source !== "youtube" ||
+    lastTedAnalysisMeta.value.youtube_url !== playerParsedYoutubeUrl.value ||
+    lastTedAnalysisMeta.value.language_code !== playerSelectedSubtitle.value
+  ) {
+    return new Set();
+  }
+
+  return new Set(
+    tedResults.value
+      .filter((item) => !item.mastered)
+      .map((item) => (item.word || "").toLowerCase())
+      .filter((word) => !!word)
+  );
+});
+
+const playerUnknownLineIndices = computed(() => {
+  const unknownWords = playerUnknownWordsFromTedAnalysis.value;
+  const indices = new Set();
+  if (!unknownWords.size || !playerTranscriptLines.value.length) {
+    return indices;
+  }
+
+  const wordPattern = /\b[a-zA-Z]+(?:-[a-zA-Z]+)*\b/g;
+  playerTranscriptLines.value.forEach((line, index) => {
+    const words = (line.text || "").match(wordPattern) || [];
+    if (words.some((word) => unknownWords.has(word.toLowerCase()))) {
+      indices.add(index);
+    }
+  });
+  return indices;
+});
+
+const homeCanStartLearning = computed(() => {
+  return (
+    !!homeYoutubeUrl.value.trim() &&
+    !!homeParsedVideoId.value &&
+    homeYoutubeUrl.value.trim() === homeParsedUrl.value &&
+    !!homeSelectedSubtitle.value
+  );
+});
+
+const activePlayerSubtitleIndex = computed(() => {
+  const lines = playerTranscriptLines.value;
+  const time = playerCurrentTime.value;
+  if (!lines.length || time < 0) {
+    return -1;
+  }
+
+  let left = 0;
+  let right = lines.length - 1;
+  let found = -1;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (lines[mid].start <= time) {
+      found = mid;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  if (found === -1) {
+    return -1;
+  }
+
+  if (time <= lines[found].end) {
+    return found;
+  }
+
+  const nextIndex = found + 1;
+  if (
+    nextIndex < lines.length &&
+    time >= lines[nextIndex].start &&
+    time <= lines[nextIndex].end
+  ) {
+    return nextIndex;
+  }
+
+  return found;
+});
+
+watch(playerYoutubeUrl, (newUrl) => {
+  if (newUrl.trim() === playerParsedYoutubeUrl.value) {
+    return;
+  }
+
+  playerVideoId.value = "";
+  playerVideoTitle.value = "";
+  playerSubtitleOptions.value = [];
+  playerSelectedSubtitle.value = "";
+  playerTranscriptLines.value = [];
+  playerCurrentTime.value = 0;
+  clearAbSelection();
+  playerPlaybackTarget.value = null;
+  destroyEnglishPlayer();
+});
+
+watch(homeYoutubeUrl, (newUrl) => {
+  if (newUrl.trim() === homeParsedUrl.value) {
+    return;
+  }
+  homeParsedUrl.value = "";
+  homeParsedTitle.value = "";
+  homeParsedVideoId.value = "";
+  homeSubtitleOptions.value = [];
+  homeSelectedSubtitle.value = "";
+});
+
+watch(playerAbSelectionMode, (mode) => {
+  playerPlaybackTarget.value = null;
+  playerAbSelectionCandidates.value = [];
+});
+
+watch(currentPage, async (newPage, oldPage) => {
+  if (oldPage === "player" && newPage !== "player") {
+    destroyEnglishPlayer();
+  }
+
+  if (
+    newPage === "player" &&
+    playerVideoId.value &&
+    playerTranscriptLines.value.length > 0
+  ) {
+    await mountEnglishPlayer(playerVideoId.value);
+  }
+});
+
+watch(activePlayerSubtitleIndex, (index, prev) => {
+  if (
+    index < 0 ||
+    index === prev ||
+    !playerSubtitleListRef.value
+  ) {
+    return;
+  }
+
+  const activeNode = playerSubtitleListRef.value.querySelector(
+    `[data-sub-index="${index}"]`
+  );
+  if (activeNode) {
+    activeNode.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+});
+
+async function loadYoutubeIframeApi() {
+  if (window.YT && window.YT.Player) {
+    return window.YT;
+  }
+
+  if (youtubeIframeApiPromise) {
+    return youtubeIframeApiPromise;
+  }
+
+  youtubeIframeApiPromise = new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error("加载 YouTube 播放器超时"));
+    }, 15000);
+
+    const previousReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof previousReady === "function") {
+        previousReady();
+      }
+      clearTimeout(timeoutId);
+      resolve(window.YT);
+    };
+
+    const existingScript = document.getElementById("youtube-iframe-api-script");
+    if (!existingScript) {
+      const script = document.createElement("script");
+      script.id = "youtube-iframe-api-script";
+      script.src = "https://www.youtube.com/iframe_api";
+      script.async = true;
+      script.onerror = () => {
+        clearTimeout(timeoutId);
+        reject(new Error("无法加载 YouTube 播放器脚本"));
+      };
+      document.body.appendChild(script);
+    }
+  }).catch((err) => {
+    youtubeIframeApiPromise = null;
+    throw err;
+  });
+
+  return youtubeIframeApiPromise;
+}
+
+function startEnglishPlayerTimer() {
+  stopEnglishPlayerTimer();
+  englishPlayerTimer = window.setInterval(() => {
+    if (
+      englishPlayerInstance &&
+      typeof englishPlayerInstance.getCurrentTime === "function"
+    ) {
+      const currentTime = Number(englishPlayerInstance.getCurrentTime());
+      if (!Number.isNaN(currentTime)) {
+        playerCurrentTime.value = currentTime;
+        handlePlaybackBoundary(currentTime);
+      }
+    }
+  }, 300);
+}
+
+function stopEnglishPlayerTimer() {
+  if (englishPlayerTimer) {
+    clearInterval(englishPlayerTimer);
+    englishPlayerTimer = null;
+  }
+}
+
+function destroyEnglishPlayer() {
+  stopEnglishPlayerTimer();
+  if (
+    englishPlayerInstance &&
+    typeof englishPlayerInstance.destroy === "function"
+  ) {
+    englishPlayerInstance.destroy();
+  }
+  englishPlayerInstance = null;
+  playerIsPlaying.value = false;
+}
+
+async function parseHomeVideo() {
+  const url = homeYoutubeUrl.value.trim();
+  if (!url) {
+    return;
+  }
+
+  homeParseLoading.value = true;
+  homeError.value = "";
+  homeParsedUrl.value = "";
+  homeParsedTitle.value = "";
+  homeParsedVideoId.value = "";
+  homeSubtitleOptions.value = [];
+  homeSelectedSubtitle.value = "";
+
+  try {
+    const response = await fetch("/api/youtube-subtitles", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        youtube_url: url,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data.status !== "success") {
+      homeError.value = "解析失败: " + (data.message || "未知错误");
+      return;
+    }
+
+    homeParsedUrl.value = url;
+    homeParsedTitle.value = data.video_title || "";
+    homeParsedVideoId.value = data.video_id || "";
+    homeSubtitleOptions.value = data.subtitles || [];
+
+    if (!homeSubtitleOptions.value.length) {
+      homeError.value = "未找到英文人工字幕";
+      return;
+    }
+
+    homeSelectedSubtitle.value = homeSubtitleOptions.value[0].language_code;
+    upsertPlayerHistory({
+      url,
+      videoId: homeParsedVideoId.value,
+      title: homeParsedTitle.value,
+      subtitleCode: homeSelectedSubtitle.value,
+    });
+    message.success("解析成功，可开始学习");
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    homeError.value = "请求失败: " + errorMsg;
+    console.error("首页解析视频失败:", err);
+  } finally {
+    homeParseLoading.value = false;
+  }
+}
+
+async function startLearningFromHome() {
+  if (!homeCanStartLearning.value) {
+    return;
+  }
+
+  playerYoutubeUrl.value = homeParsedUrl.value;
+  playerParsedYoutubeUrl.value = homeParsedUrl.value;
+  playerVideoId.value = homeParsedVideoId.value;
+  playerVideoTitle.value = homeParsedTitle.value;
+  playerSubtitleOptions.value = homeSubtitleOptions.value.slice();
+  playerSelectedSubtitle.value = homeSelectedSubtitle.value;
+  currentPage.value = "player";
+  await loadPlayerTranscript();
+}
+
+async function startLearningFromHistory(item) {
+  if (!item || !item.url) {
+    return;
+  }
+  homeYoutubeUrl.value = item.url;
+  await parseAndLoadPlayerVideo(item.url, {
+    preferredSubtitle: item.subtitleCode || "",
+  });
+  currentPage.value = "player";
+}
+
+function removeHistoryVideo(historyId) {
+  if (!historyId) {
+    return;
+  }
+  playerHistoryVideos.value = playerHistoryVideos.value.filter(
+    (item) => item.id !== historyId
+  );
+  savePlayerHistory();
+}
+
+function goToSubtitleAnalysisFromHome() {
+  if (!homeCanStartLearning.value) {
+    return;
+  }
+
+  youtubeUrl.value = homeParsedUrl.value;
+  parsedYoutubeUrl.value = homeParsedUrl.value;
+  youtubeVideoTitle.value = homeParsedTitle.value;
+  youtubeSubtitles.value = homeSubtitleOptions.value.slice();
+  selectedYoutubeSubtitle.value = homeSelectedSubtitle.value;
+  openTedPage();
+}
+
+function loadPlayerHistory() {
+  try {
+    const raw = localStorage.getItem(PLAYER_HISTORY_STORAGE_KEY);
+    if (!raw) {
+      playerHistoryVideos.value = [];
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      playerHistoryVideos.value = [];
+      return;
+    }
+
+    playerHistoryVideos.value = parsed
+      .filter((item) => item && item.id && item.url)
+      .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
+  } catch (err) {
+    console.warn("读取播放器历史失败:", err);
+    playerHistoryVideos.value = [];
+  }
+}
+
+function savePlayerHistory() {
+  localStorage.setItem(
+    PLAYER_HISTORY_STORAGE_KEY,
+    JSON.stringify(playerHistoryVideos.value)
+  );
+}
+
+function upsertPlayerHistory({ url, videoId, title, subtitleCode }) {
+  const normalizedUrl = (url || "").trim();
+  if (!normalizedUrl) {
+    return null;
+  }
+
+  const now = Date.now();
+  const existingIndex = playerHistoryVideos.value.findIndex(
+    (item) => item.url === normalizedUrl
+  );
+  const existing =
+    existingIndex >= 0 ? playerHistoryVideos.value[existingIndex] : null;
+
+  const entry = {
+    id: existing?.id || `${now}-${Math.random().toString(36).slice(2, 8)}`,
+    url: normalizedUrl,
+    videoId: videoId || existing?.videoId || "",
+    title: title || existing?.title || normalizedUrl,
+    subtitleCode: subtitleCode || existing?.subtitleCode || "",
+    lastUsedAt: now,
+  };
+
+  if (existingIndex >= 0) {
+    playerHistoryVideos.value.splice(existingIndex, 1, entry);
+  } else {
+    playerHistoryVideos.value.push(entry);
+  }
+
+  playerHistoryVideos.value = playerHistoryVideos.value
+    .slice()
+    .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0))
+    .slice(0, 80);
+  savePlayerHistory();
+  return entry;
+}
+
+function clearAbSelection() {
+  playerAbStartIndex.value = -1;
+  playerAbEndIndex.value = -1;
+  playerAbSelectionCandidates.value = [];
+  playerAbSelectionMode.value = false;
+}
+
+function isIndexInAbRange(index) {
+  if (!canPlayAbRange.value) {
+    return false;
+  }
+  const start = Math.min(playerAbStartIndex.value, playerAbEndIndex.value);
+  const end = Math.max(playerAbStartIndex.value, playerAbEndIndex.value);
+  return index >= start && index <= end;
+}
+
+function handlePlaybackBoundary(currentTime) {
+  const target = playerPlaybackTarget.value;
+  if (!target) {
+    return;
+  }
+
+  if (currentTime + 0.05 < target.end) {
+    return;
+  }
+
+  if (
+    englishPlayerInstance &&
+    typeof englishPlayerInstance.pauseVideo === "function"
+  ) {
+    englishPlayerInstance.pauseVideo();
+  }
+  playerPlaybackTarget.value = null;
+}
+
+function seekAndPlay(seconds) {
+  if (
+    !englishPlayerInstance ||
+    typeof englishPlayerInstance.seekTo !== "function"
+  ) {
+    message.warning("播放器尚未准备好");
+    return false;
+  }
+
+  const start = Number(seconds || 0);
+  englishPlayerInstance.seekTo(start, true);
+  if (typeof englishPlayerInstance.playVideo === "function") {
+    englishPlayerInstance.playVideo();
+  }
+  playerCurrentTime.value = start;
+  return true;
+}
+
+function playSingleLine(line) {
+  if (!seekAndPlay(line.start)) {
+    return;
+  }
+  const end = Math.max(Number(line.end || 0), Number(line.start || 0) + 0.3);
+  playerPlaybackTarget.value = {
+    mode: "single",
+    start: Number(line.start || 0),
+    end,
+  };
+}
+
+function playSequentialFromCurrentPosition() {
+  if (
+    !englishPlayerInstance ||
+    typeof englishPlayerInstance.playVideo !== "function"
+  ) {
+    message.warning("播放器尚未准备好");
+    return;
+  }
+  playerPlaybackTarget.value = null;
+  englishPlayerInstance.playVideo();
+}
+
+function playAbRange() {
+  if (!canPlayAbRange.value) {
+    message.info("请先在字幕中设置 A 和 B");
+    return;
+  }
+
+  const startIndex = Math.min(playerAbStartIndex.value, playerAbEndIndex.value);
+  const endIndex = Math.max(playerAbStartIndex.value, playerAbEndIndex.value);
+  const startLine = playerTranscriptLines.value[startIndex];
+  const endLine = playerTranscriptLines.value[endIndex];
+  if (!startLine || !endLine) {
+    return;
+  }
+
+  if (!seekAndPlay(startLine.start)) {
+    return;
+  }
+
+  playerPlaybackTarget.value = {
+    mode: "ab",
+    start: Number(startLine.start || 0),
+    end: Math.max(Number(endLine.end || 0), Number(startLine.start || 0) + 0.3),
+  };
+}
+
+function isAbCandidate(index) {
+  return playerAbSelectionCandidates.value.includes(index);
+}
+
+function toggleAbSelectionMode() {
+  if (!playerTranscriptLines.value.length) {
+    return;
+  }
+
+  if (playerAbSelectionMode.value) {
+    clearAbSelection();
+    playerPlaybackTarget.value = null;
+    message.info("已退出 AB 模式");
+    return;
+  }
+
+  clearAbSelection();
+  playerAbSelectionMode.value = true;
+  message.info("请选择两句字幕作为 A / B");
+}
+
+function toggleAbCandidate(index) {
+  if (index < 0 || index >= playerTranscriptLines.value.length) {
+    return;
+  }
+
+  const current = playerAbSelectionCandidates.value.slice();
+  const existing = current.indexOf(index);
+  if (existing >= 0) {
+    current.splice(existing, 1);
+    playerAbSelectionCandidates.value = current;
+    return;
+  }
+
+  if (current.length >= 2) {
+    current.shift();
+  }
+  current.push(index);
+  playerAbSelectionCandidates.value = current;
+
+  if (current.length === 2) {
+    const [first, second] = current;
+    playerAbStartIndex.value = Math.min(first, second);
+    playerAbEndIndex.value = Math.max(first, second);
+    playAbRange();
+  }
+}
+
+function playPrevSubtitle() {
+  if (!playerTranscriptLines.value.length) {
+    return;
+  }
+  const base =
+    activePlayerSubtitleIndex.value >= 0 ? activePlayerSubtitleIndex.value : 0;
+  const targetIndex = Math.max(0, base - 1);
+  const line = playerTranscriptLines.value[targetIndex];
+  if (line) {
+    playSingleLine(line);
+  }
+}
+
+function playNextSubtitle() {
+  if (!playerTranscriptLines.value.length) {
+    return;
+  }
+  const base =
+    activePlayerSubtitleIndex.value >= 0 ? activePlayerSubtitleIndex.value : -1;
+  const targetIndex = Math.min(
+    playerTranscriptLines.value.length - 1,
+    base + 1
+  );
+  const line = playerTranscriptLines.value[targetIndex];
+  if (line) {
+    playSingleLine(line);
+  }
+}
+
+function togglePlayerPlayPause() {
+  if (!englishPlayerInstance) {
+    message.warning("播放器尚未准备好");
+    return;
+  }
+
+  if (playerIsPlaying.value) {
+    if (typeof englishPlayerInstance.pauseVideo === "function") {
+      englishPlayerInstance.pauseVideo();
+    }
+    playerPlaybackTarget.value = null;
+    return;
+  }
+
+  playSequentialFromCurrentPosition();
+}
+
+function handleSubtitleLineClick(line, index) {
+  if (playerAbSelectionMode.value) {
+    toggleAbCandidate(index);
+    return;
+  }
+
+  playSingleLine(line);
+}
+
+async function mountEnglishPlayer(videoId) {
+  if (!videoId) {
+    return;
+  }
+
+  await nextTick();
+  await loadYoutubeIframeApi();
+
+  const playerRoot = document.getElementById("english-learning-player");
+  if (!playerRoot) {
+    return;
+  }
+
+  if (
+    englishPlayerInstance &&
+    typeof englishPlayerInstance.loadVideoById === "function"
+  ) {
+    englishPlayerInstance.loadVideoById({ videoId, startSeconds: 0 });
+    playerCurrentTime.value = 0;
+    playerIsPlaying.value = false;
+    startEnglishPlayerTimer();
+    return;
+  }
+
+  englishPlayerInstance = new window.YT.Player("english-learning-player", {
+    videoId,
+    width: "100%",
+    height: "100%",
+    playerVars: {
+      rel: 0,
+      modestbranding: 1,
+      playsinline: 1,
+    },
+    events: {
+      onReady: () => {
+        playerCurrentTime.value = 0;
+        playerIsPlaying.value = false;
+        startEnglishPlayerTimer();
+      },
+      onStateChange: (event) => {
+        if (event.data === window.YT.PlayerState.PLAYING) {
+          playerIsPlaying.value = true;
+          startEnglishPlayerTimer();
+          return;
+        }
+
+        if (
+          event.data === window.YT.PlayerState.PAUSED ||
+          event.data === window.YT.PlayerState.ENDED
+        ) {
+          playerIsPlaying.value = false;
+        }
+      },
+    },
+  });
+}
+
+async function parseAndLoadPlayerVideo(
+  url,
+  { preferredSubtitle = "" } = {}
+) {
+  const normalizedUrl = (url || "").trim();
+  if (!normalizedUrl) {
+    return;
+  }
+
+  playerMetaLoading.value = true;
+  playerError.value = "";
+  playerParsedYoutubeUrl.value = "";
+  playerVideoId.value = "";
+  playerVideoTitle.value = "";
+  playerSubtitleOptions.value = [];
+  playerSelectedSubtitle.value = "";
+  playerTranscriptLines.value = [];
+  playerCurrentTime.value = 0;
+  playerPlaybackTarget.value = null;
+  clearAbSelection();
+  destroyEnglishPlayer();
+
+  try {
+    const response = await fetch("/api/youtube-subtitles", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        youtube_url: normalizedUrl,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data.status !== "success") {
+      playerError.value = "解析字幕失败: " + (data.message || "未知错误");
+      return;
+    }
+
+    playerParsedYoutubeUrl.value = normalizedUrl;
+    playerYoutubeUrl.value = normalizedUrl;
+    playerVideoId.value = data.video_id || "";
+    playerVideoTitle.value = data.video_title || "";
+    playerSubtitleOptions.value = data.subtitles || [];
+
+    if (!playerSubtitleOptions.value.length) {
+      playerError.value = "未找到英文人工字幕";
+      return;
+    }
+
+    const matchedSubtitle = playerSubtitleOptions.value.find(
+      (item) => item.language_code === preferredSubtitle
+    );
+    playerSelectedSubtitle.value = matchedSubtitle
+      ? matchedSubtitle.language_code
+      : playerSubtitleOptions.value[0].language_code;
+    await loadPlayerTranscript();
+
+    upsertPlayerHistory({
+      url: normalizedUrl,
+      videoId: playerVideoId.value,
+      title: playerVideoTitle.value,
+      subtitleCode: playerSelectedSubtitle.value,
+    });
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    playerError.value = "请求失败: " + errorMsg;
+    console.error("解析播放器字幕失败:", err);
+  } finally {
+    playerMetaLoading.value = false;
+  }
+}
+
+async function loadPlayerTranscript() {
+  if (!playerCanLoadTranscript.value) {
+    return;
+  }
+
+  playerTranscriptLoading.value = true;
+  playerError.value = "";
+  playerTranscriptLines.value = [];
+  playerCurrentTime.value = 0;
+  playerPlaybackTarget.value = null;
+  clearAbSelection();
+
+  try {
+    const response = await fetch("/api/youtube-transcript-lines", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        youtube_url: playerYoutubeUrl.value.trim(),
+        language_code: playerSelectedSubtitle.value,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (data.status !== "success") {
+      playerError.value = "加载字幕失败: " + (data.message || "未知错误");
+      return;
+    }
+
+    playerVideoId.value = data.video_id || playerVideoId.value;
+    playerVideoTitle.value = data.video_title || playerVideoTitle.value;
+    playerTranscriptLines.value = data.lines || [];
+
+    await mountEnglishPlayer(playerVideoId.value);
+
+    upsertPlayerHistory({
+      url: playerYoutubeUrl.value.trim(),
+      videoId: playerVideoId.value,
+      title: playerVideoTitle.value,
+      subtitleCode: playerSelectedSubtitle.value,
+    });
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    playerError.value = "请求失败: " + errorMsg;
+    console.error("加载字幕时间轴失败:", err);
+  } finally {
+    playerTranscriptLoading.value = false;
+  }
+}
+
+async function analyzeCurrentSubtitleVocabulary() {
+  if (!canAnalyzeCurrentPlayerSubtitle.value) {
+    message.info("请先完成视频和字幕加载");
+    return;
+  }
+
+  youtubeUrl.value = playerParsedYoutubeUrl.value;
+  parsedYoutubeUrl.value = playerParsedYoutubeUrl.value;
+  youtubeVideoTitle.value = playerVideoTitle.value;
+  youtubeSubtitles.value = playerSubtitleOptions.value.slice();
+  selectedYoutubeSubtitle.value = playerSelectedSubtitle.value;
+  openTedPage();
+  await nextTick();
+  await analyzeTedFile();
+}
+
+function hasUnknownWordsInLine(index) {
+  return playerUnknownLineIndices.value.has(index);
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderSubtitleTextWithUnknownWords(text) {
+  const escapedText = escapeHtml(text);
+  const unknownWords = playerUnknownWordsFromTedAnalysis.value;
+  if (!unknownWords.size) {
+    return escapedText;
+  }
+
+  return escapedText.replace(
+    /\b([a-zA-Z]+(?:-[a-zA-Z]+)*)\b/g,
+    (fullMatch, word) => {
+      if (unknownWords.has(word.toLowerCase())) {
+        return `<span class="player-unknown-word">${fullMatch}</span>`;
+      }
+      return fullMatch;
+    }
+  );
+}
+
+function formatSubtitleTime(seconds) {
+  const totalSeconds = Math.max(0, Math.floor(Number(seconds || 0)));
+  const minutes = Math.floor(totalSeconds / 60);
+  const restSeconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
+}
 </script>
 
 <style>
@@ -2097,6 +2490,167 @@ body {
   gap: 20px;
   max-width: 100%;
   height: calc(100vh - 104px);
+}
+
+.player-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: calc(100vh - 104px);
+}
+
+.player-toolbar {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.player-toolbar-title {
+  font-size: 14px;
+  color: #555;
+  font-weight: 500;
+}
+
+.player-content {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+
+.player-video-panel,
+.player-subtitle-panel {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  min-height: 0;
+}
+
+.player-video-panel {
+  flex: 1 1 58%;
+  display: flex;
+  flex-direction: column;
+}
+
+.player-video-wrapper {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+#english-learning-player {
+  position: absolute;
+  inset: 0;
+}
+
+.player-subtitle-panel {
+  flex: 1 1 42%;
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+}
+
+.player-subtitle-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.player-ab-hint {
+  color: #666;
+  font-size: 13px;
+}
+
+.player-subtitle-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.player-subtitle-item {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fff;
+}
+
+.player-subtitle-item.ab-select-mode {
+  grid-template-columns: 28px 60px 1fr;
+}
+
+.player-subtitle-item:hover {
+  border-color: #91caff;
+  background: #f5faff;
+}
+
+.player-subtitle-item.active {
+  border-color: #1890ff;
+  background: #e6f7ff;
+}
+
+.player-subtitle-item.in-ab-range {
+  border-color: #95de64;
+  background: #f6ffed;
+}
+
+.player-subtitle-item.unknown-line {
+  border-color: #91caff;
+  background: #f0f7ff;
+}
+
+.player-subtitle-time {
+  color: #1890ff;
+  font-size: 12px;
+  font-weight: 700;
+  padding-top: 2px;
+}
+
+.player-subtitle-text {
+  color: #262626;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+:deep(.player-unknown-word) {
+  background: #cfe3ff;
+  color: #0f4c9c;
+  border-radius: 4px;
+  padding: 0 4px;
+  margin: 0 1px;
+  font-weight: 600;
+}
+
+.player-ab-select-cell {
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+.player-subtitle-empty {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #999;
+  font-size: 14px;
 }
 
 /* 左侧表格区域 */
@@ -2382,6 +2936,25 @@ body {
     height: auto;
   }
 
+  .player-page {
+    height: auto;
+  }
+
+  .player-content {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .player-video-panel,
+  .player-subtitle-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .player-subtitle-panel {
+    height: 460px;
+  }
+
   .table-section {
     height: 500px;
   }
@@ -2412,78 +2985,156 @@ body {
   .config-section {
     padding: 15px;
   }
+
+  .player-subtitle-controls {
+    width: 100%;
+  }
+
+  .player-subtitle-item {
+    grid-template-columns: 52px 1fr;
+    gap: 8px;
+    padding: 9px 10px;
+  }
+
+  .player-subtitle-item.ab-select-mode {
+    grid-template-columns: 24px 52px 1fr;
+  }
+
+  .player-subtitle-text {
+    font-size: 14px;
+  }
+
+  .home-entry-row {
+    grid-template-columns: 1fr;
+  }
+
+  .home-history-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .home-history-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 /* 首页样式 */
-.home-page {
+.home-player-page {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100vh - 150px);
-  padding: 40px;
+  gap: 16px;
+  min-height: calc(100vh - 104px);
 }
 
-.home-title {
-  text-align: center;
-  margin-bottom: 48px;
-}
-
-.home-title h2 {
-  font-size: 32px;
-  font-weight: 700;
-  color: #262626;
-  margin: 0 0 8px 0;
-}
-
-.home-title p {
-  font-size: 16px;
-  color: #666;
-  margin: 0;
-}
-
-.home-buttons {
-  display: flex;
-  gap: 40px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.home-card {
+.home-player-entry {
   background: #fff;
-  border-radius: 16px;
-  padding: 48px 40px;
-  width: 300px;
-  text-align: center;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.home-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 32px rgba(24, 144, 255, 0.15);
-  border-color: #1890ff;
+.home-player-entry.no-history {
+  margin: auto;
+  width: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 180px;
 }
 
-.home-card-icon {
-  font-size: 64px;
-  margin-bottom: 20px;
-  line-height: 1;
+.home-player-entry.no-history .home-entry-row {
+  margin-top: 0;
 }
 
-.home-card-title {
-  font-size: 24px;
-  font-weight: 700;
+.home-entry-title h2 {
+  margin: 0 0 6px 0;
   color: #262626;
-  margin-bottom: 12px;
+  font-size: 28px;
+  font-weight: 700;
 }
 
-.home-card-desc {
+.home-entry-title p {
+  margin: 0;
+  color: #666;
   font-size: 14px;
+}
+
+.home-entry-row {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 10px;
+}
+
+.home-entry-next {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.home-entry-video-title {
+  margin-top: 12px;
+  color: #666;
+  font-size: 13px;
+}
+
+.home-history-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.home-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.home-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.home-history-main {
+  min-width: 0;
+}
+
+.home-history-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #222;
+}
+
+.home-history-url {
+  margin-top: 4px;
   color: #888;
-  line-height: 1.6;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(680px, 100%);
+}
+
+.home-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-extension-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 /* 统计页面样式 */

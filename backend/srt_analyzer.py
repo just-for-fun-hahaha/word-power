@@ -544,14 +544,10 @@ def get_youtube_subtitles(youtube_url):
     }
 
 
-def analyze_youtube_subtitle(youtube_url, language_code):
-    """分析指定YouTube视频中的英文人工字幕"""
-    if not language_code or not str(language_code).strip():
-        raise ValueError("缺少language_code参数")
-
-    video_id = extract_youtube_video_id(youtube_url)
+def _select_english_manual_transcript(video_id, language_code):
+    """选择指定语言的英文人工字幕对象"""
     transcripts = _list_youtube_transcripts(video_id)
-    normalized_code = str(language_code).strip().lower()
+    normalized_code = (language_code or "").strip().lower()
     selected_transcript = None
     english_manual_codes = []
 
@@ -567,6 +563,54 @@ def analyze_youtube_subtitle(youtube_url, language_code):
             selected_transcript = transcript
             break
 
+    return selected_transcript, english_manual_codes
+
+
+def _extract_transcript_lines(transcript):
+    """提取字幕行，保留时间轴"""
+    transcript_items = transcript.fetch()
+    lines = []
+
+    for idx, item in enumerate(transcript_items):
+        if isinstance(item, dict):
+            raw_text = item.get("text", "")
+            start = float(item.get("start", 0) or 0)
+            duration = float(item.get("duration", 0) or 0)
+        else:
+            raw_text = getattr(item, "text", "")
+            start = float(getattr(item, "start", 0) or 0)
+            duration = float(getattr(item, "duration", 0) or 0)
+
+        text = html.unescape(str(raw_text)).strip()
+        if not text:
+            continue
+
+        normalized_text = " ".join(text.replace("\n", " ").split())
+        safe_duration = duration if duration > 0 else 2.0
+
+        lines.append(
+            {
+                "index": idx,
+                "start": round(start, 3),
+                "duration": round(safe_duration, 3),
+                "end": round(start + safe_duration, 3),
+                "text": normalized_text,
+            }
+        )
+
+    return lines
+
+
+def get_youtube_transcript_lines(youtube_url, language_code):
+    """获取指定英文人工字幕的完整时间轴内容"""
+    if not language_code or not str(language_code).strip():
+        raise ValueError("缺少language_code参数")
+
+    video_id = extract_youtube_video_id(youtube_url)
+    selected_transcript, english_manual_codes = _select_english_manual_transcript(
+        video_id, str(language_code)
+    )
+
     if selected_transcript is None:
         if not english_manual_codes:
             raise FileNotFoundError("该视频没有可用的英文人工字幕")
@@ -574,19 +618,21 @@ def analyze_youtube_subtitle(youtube_url, language_code):
             f"未找到 language_code={language_code} 的英文人工字幕"
         )
 
-    transcript_items = selected_transcript.fetch()
-    lines = []
+    lines = _extract_transcript_lines(selected_transcript)
 
-    for item in transcript_items:
-        if isinstance(item, dict):
-            text = item.get("text", "")
-        else:
-            text = getattr(item, "text", "")
-        text = html.unescape(str(text)).strip()
-        if text:
-            lines.append(text.replace("\n", " "))
+    return {
+        "video_id": video_id,
+        "video_title": _get_youtube_video_title(video_id),
+        "language_code": getattr(selected_transcript, "language_code", ""),
+        "language": getattr(selected_transcript, "language", ""),
+        "lines": lines,
+    }
 
-    content = "\n".join(lines)
+
+def analyze_youtube_subtitle(youtube_url, language_code):
+    """分析指定YouTube视频中的英文人工字幕"""
+    transcript_data = get_youtube_transcript_lines(youtube_url, language_code)
+    content = "\n".join([line["text"] for line in transcript_data["lines"]])
     return analyze_txt_content(content)
 
 
