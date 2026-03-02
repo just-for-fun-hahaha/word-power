@@ -3,10 +3,14 @@
 SRT文件分析模块
 """
 import csv
+import html
+import json
 import re
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import parse_qs, quote, urlparse
+from urllib.request import urlopen
 
 try:
     from nltk.corpus import wordnet
@@ -21,6 +25,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 # 初始化词形还原器
 lemmatizer = WordNetLemmatizer()
+YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 
 def get_wordnet_pos(word, pos_tag):
@@ -406,6 +411,183 @@ def analyze_txt_content(content):
     results = unmastered + mastered
 
     return results
+
+
+def _load_youtube_transcript_api():
+    """按需加载youtube-transcript-api依赖"""
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+    except ImportError as e:
+        raise RuntimeError(
+            "缺少 youtube-transcript-api 依赖，"
+            "请先在 backend/requirements.txt 安装后重试"
+        ) from e
+
+    return YouTubeTranscriptApi
+
+
+def extract_youtube_video_id(youtube_url):
+    """从YouTube链接中提取视频ID"""
+    if not youtube_url or not youtube_url.strip():
+        raise ValueError("缺少YouTube链接")
+
+    value = youtube_url.strip()
+
+    # 允许直接输入视频ID
+    if YOUTUBE_VIDEO_ID_PATTERN.fullmatch(value):
+        return value
+
+    parsed = urlparse(value)
+    if not parsed.netloc and parsed.path:
+        normalized = parsed.path.strip()
+        if normalized.startswith(
+            ("youtube.com/", "www.youtube.com/", "m.youtube.com/", "youtu.be/")
+        ):
+            parsed = urlparse(f"https://{normalized}")
+
+    host = parsed.netloc.lower()
+    path = parsed.path.strip("/")
+    video_id = ""
+
+    if host in {"youtu.be", "www.youtu.be"}:
+        video_id = path.split("/")[0] if path else ""
+    elif "youtube.com" in host or "youtube-nocookie.com" in host:
+        if path == "watch":
+            video_id = parse_qs(parsed.query).get("v", [""])[0]
+        elif path.startswith("embed/"):
+            parts = path.split("/")
+            video_id = parts[1] if len(parts) > 1 else ""
+        elif path.startswith("shorts/") or path.startswith("live/"):
+            parts = path.split("/")
+            video_id = parts[1] if len(parts) > 1 else ""
+
+    if not YOUTUBE_VIDEO_ID_PATTERN.fullmatch(video_id):
+        raise ValueError("无效的YouTube视频链接")
+
+    return video_id
+
+
+def _list_youtube_transcripts(video_id):
+    """兼容不同youtube-transcript-api版本，返回字幕对象列表"""
+    YouTubeTranscriptApi = _load_youtube_transcript_api()
+
+    # 新版本：实例方法 list(video_id)
+    try:
+        api = YouTubeTranscriptApi()
+        if hasattr(api, "list"):
+            return list(api.list(video_id))
+    except TypeError:
+        # 旧版本可能不支持实例化
+        pass
+
+    # 旧版本：类方法 list_transcripts(video_id)
+    if hasattr(YouTubeTranscriptApi, "list_transcripts"):
+        return list(YouTubeTranscriptApi.list_transcripts(video_id))
+
+    raise RuntimeError(
+        "当前 youtube-transcript-api 版本不支持列出字幕，"
+        "请升级依赖后重试"
+    )
+
+
+def _is_english_subtitle(language_code):
+    code = (language_code or "").strip().lower()
+    return code == "en" or code.startswith("en-")
+
+
+def _get_youtube_video_title(video_id):
+    """通过YouTube oEmbed接口获取视频标题（失败时返回空字符串）"""
+    try:
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        oembed_url = (
+            "https://www.youtube.com/oembed"
+            f"?url={quote(video_url, safe='')}&format=json"
+        )
+        with urlopen(oembed_url, timeout=5) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            return data.get("title", "")
+    except Exception:
+        return ""
+
+
+def get_youtube_subtitles(youtube_url):
+    """获取YouTube视频的英文人工字幕列表（非自动生成）"""
+    video_id = extract_youtube_video_id(youtube_url)
+    transcripts = _list_youtube_transcripts(video_id)
+
+    subtitles = []
+    seen_codes = set()
+
+    for transcript in transcripts:
+        language_code = (getattr(transcript, "language_code", "") or "").strip()
+        if not _is_english_subtitle(language_code):
+            continue
+        if bool(getattr(transcript, "is_generated", False)):
+            continue
+        if language_code in seen_codes:
+            continue
+
+        seen_codes.add(language_code)
+        subtitles.append(
+            {
+                "language_code": language_code,
+                "language": getattr(transcript, "language", language_code),
+            }
+        )
+
+    subtitles.sort(key=lambda item: (item["language_code"] != "en", item["language_code"]))
+
+    return {
+        "video_id": video_id,
+        "video_title": _get_youtube_video_title(video_id),
+        "subtitles": subtitles,
+    }
+
+
+def analyze_youtube_subtitle(youtube_url, language_code):
+    """分析指定YouTube视频中的英文人工字幕"""
+    if not language_code or not str(language_code).strip():
+        raise ValueError("缺少language_code参数")
+
+    video_id = extract_youtube_video_id(youtube_url)
+    transcripts = _list_youtube_transcripts(video_id)
+    normalized_code = str(language_code).strip().lower()
+    selected_transcript = None
+    english_manual_codes = []
+
+    for transcript in transcripts:
+        current_code = (getattr(transcript, "language_code", "") or "").strip()
+        if not _is_english_subtitle(current_code):
+            continue
+        if bool(getattr(transcript, "is_generated", False)):
+            continue
+
+        english_manual_codes.append(current_code)
+        if current_code.lower() == normalized_code:
+            selected_transcript = transcript
+            break
+
+    if selected_transcript is None:
+        if not english_manual_codes:
+            raise FileNotFoundError("该视频没有可用的英文人工字幕")
+        raise FileNotFoundError(
+            f"未找到 language_code={language_code} 的英文人工字幕"
+        )
+
+    transcript_items = selected_transcript.fetch()
+    lines = []
+
+    for item in transcript_items:
+        if isinstance(item, dict):
+            text = item.get("text", "")
+        else:
+            text = getattr(item, "text", "")
+        text = html.unescape(str(text)).strip()
+        if text:
+            lines.append(text.replace("\n", " "))
+
+    content = "\n".join(lines)
+    return analyze_txt_content(content)
 
 
 def get_srt_files():

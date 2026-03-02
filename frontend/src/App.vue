@@ -490,12 +490,24 @@
                       <h2>选择材料</h2>
                     </div>
                     <div class="config-item-inline">
+                      <label>来源：</label>
+                      <a-radio-group
+                        v-model:value="tedSourceType"
+                        :disabled="tedLoading || youtubeLoading"
+                        button-style="solid"
+                      >
+                        <a-radio-button value="txt">本地TXT</a-radio-button>
+                        <a-radio-button value="youtube">YouTube链接</a-radio-button>
+                      </a-radio-group>
+                    </div>
+
+                    <div v-if="tedSourceType === 'txt'" class="config-item-inline">
                       <label>选择文件：</label>
                       <a-select
                         v-model:value="selectedTxtFile"
                         placeholder="请选择TXT文件"
-                        style="width: 200px"
-                        :disabled="tedLoading"
+                        style="width: 320px"
+                        :disabled="tedLoading || youtubeLoading"
                       >
                         <a-select-option
                           v-for="file in txtFiles"
@@ -507,10 +519,62 @@
                       </a-select>
                     </div>
 
+                    <template v-else>
+                      <div class="config-item-inline">
+                        <label>YouTube：</label>
+                        <a-input
+                          v-model:value="youtubeUrl"
+                          placeholder="粘贴YouTube视频链接"
+                          style="width: 320px"
+                          :disabled="tedLoading || youtubeLoading"
+                          allow-clear
+                        />
+                      </div>
+
+                      <a-button
+                        type="default"
+                        :loading="youtubeLoading"
+                        :disabled="tedLoading || !youtubeUrl.trim()"
+                        @click="loadYoutubeSubtitles"
+                        style="width: 320px"
+                      >
+                        解析字幕列表
+                      </a-button>
+
+                      <div class="config-item-inline">
+                        <label>英文字幕：</label>
+                        <a-select
+                          v-model:value="selectedYoutubeSubtitle"
+                          placeholder="请选择英文人工字幕"
+                          style="width: 320px"
+                          :disabled="
+                            tedLoading ||
+                            youtubeLoading ||
+                            youtubeSubtitles.length === 0
+                          "
+                        >
+                          <a-select-option
+                            v-for="subtitle in youtubeSubtitles"
+                            :key="subtitle.language_code"
+                            :value="subtitle.language_code"
+                          >
+                            {{ subtitle.language }} ({{ subtitle.language_code }})
+                          </a-select-option>
+                        </a-select>
+                      </div>
+
+                      <div
+                        v-if="youtubeVideoTitle"
+                        style="color: #666; font-size: 13px; line-height: 1.5"
+                      >
+                        视频：{{ youtubeVideoTitle }}
+                      </div>
+                    </template>
+
                     <a-button
                       type="primary"
                       :loading="tedLoading"
-                      :disabled="!selectedTxtFile"
+                      :disabled="!tedCanAnalyze"
                       @click="analyzeTedFile"
                       size="large"
                       class="analyze-button"
@@ -1594,7 +1658,14 @@ const tedColumns = [
 ];
 
 const txtFiles = ref([]);
+const tedSourceType = ref("txt");
 const selectedTxtFile = ref("");
+const youtubeUrl = ref("");
+const parsedYoutubeUrl = ref("");
+const youtubeVideoTitle = ref("");
+const youtubeSubtitles = ref([]);
+const selectedYoutubeSubtitle = ref("");
+const youtubeLoading = ref(false);
 const tedResults = ref([]);
 const tedLoading = ref(false);
 const tedError = ref("");
@@ -1605,6 +1676,33 @@ const tedPagination = ref({
   showSizeChanger: true,
   pageSizeOptions: ["10", "20", "50", "100"],
   showTotal: (total) => `共 ${total} 条`,
+});
+
+const tedCanAnalyze = computed(() => {
+  if (tedSourceType.value === "txt") {
+    return !!selectedTxtFile.value;
+  }
+  return (
+    !!youtubeUrl.value.trim() &&
+    youtubeUrl.value.trim() === parsedYoutubeUrl.value &&
+    !!selectedYoutubeSubtitle.value
+  );
+});
+
+watch(tedSourceType, () => {
+  tedError.value = "";
+  tedResults.value = [];
+  tedSelectedTagFilter.value = null;
+  tedPagination.value.current = 1;
+});
+
+watch(youtubeUrl, (newUrl) => {
+  if (newUrl.trim() === parsedYoutubeUrl.value) {
+    return;
+  }
+  selectedYoutubeSubtitle.value = "";
+  youtubeSubtitles.value = [];
+  youtubeVideoTitle.value = "";
 });
 
 const tedFilteredResults = computed(() => {
@@ -1683,22 +1781,87 @@ async function loadTxtFiles() {
   }
 }
 
+async function loadYoutubeSubtitles() {
+  const url = youtubeUrl.value.trim();
+  if (!url) {
+    return;
+  }
+
+  youtubeLoading.value = true;
+  tedError.value = "";
+  parsedYoutubeUrl.value = "";
+  youtubeSubtitles.value = [];
+  selectedYoutubeSubtitle.value = "";
+  youtubeVideoTitle.value = "";
+
+  try {
+    const response = await fetch("/api/youtube-subtitles", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        youtube_url: url,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.status === "success") {
+      youtubeSubtitles.value = data.subtitles || [];
+      youtubeVideoTitle.value = data.video_title || "";
+      parsedYoutubeUrl.value = url;
+
+      if (youtubeSubtitles.value.length > 0) {
+        selectedYoutubeSubtitle.value = youtubeSubtitles.value[0].language_code;
+        message.success(
+          `找到 ${youtubeSubtitles.value.length} 条英文人工字幕`
+        );
+      } else {
+        tedError.value = "未找到英文字幕（非自动生成）";
+      }
+    } else {
+      tedError.value = "解析字幕失败: " + (data.message || "未知错误");
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    tedError.value = "请求失败: " + errorMsg;
+    console.error("解析YouTube字幕列表失败:", err);
+  } finally {
+    youtubeLoading.value = false;
+  }
+}
+
 async function analyzeTedFile() {
-  if (!selectedTxtFile.value) return;
+  if (!tedCanAnalyze.value) return;
 
   tedLoading.value = true;
   tedError.value = "";
   tedResults.value = [];
 
   try {
-    const response = await fetch("/api/analyze-txt", {
+    const endpoint =
+      tedSourceType.value === "txt"
+        ? "/api/analyze-txt"
+        : "/api/analyze-youtube-subtitle";
+    const payload =
+      tedSourceType.value === "txt"
+        ? { file_path: selectedTxtFile.value }
+        : {
+            youtube_url: youtubeUrl.value.trim(),
+            language_code: selectedYoutubeSubtitle.value,
+          };
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        file_path: selectedTxtFile.value,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -1721,7 +1884,7 @@ async function analyzeTedFile() {
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     tedError.value = "请求失败: " + errorMsg;
-    console.error("解析TXT文件失败:", err);
+    console.error("解析字幕失败:", err);
   } finally {
     tedLoading.value = false;
   }

@@ -5,8 +5,10 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from srt_analyzer import (
+    analyze_youtube_subtitle,
     analyze_srt_file,
     analyze_txt_file,
+    get_youtube_subtitles,
     get_learning_progress,
     get_learning_stats,
     get_srt_files,
@@ -190,6 +192,74 @@ def analyze_txt():
 
         error_detail = traceback.format_exc()
         print(f"分析TXT文件时出错: {error_detail}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/youtube-subtitles", methods=["POST"])
+def youtube_subtitles():
+    """解析YouTube视频字幕并返回英文人工字幕列表"""
+    try:
+        data = request.get_json() or {}
+        youtube_url = (data.get("youtube_url") or "").strip()
+
+        if not youtube_url:
+            return (
+                jsonify({"status": "error", "message": "缺少youtube_url参数"}),
+                400,
+            )
+
+        result = get_youtube_subtitles(youtube_url)
+        return jsonify({"status": "success", **result})
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    except Exception as e:
+        import traceback
+
+        error_detail = traceback.format_exc()
+        print(f"解析YouTube字幕时出错: {error_detail}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/analyze-youtube-subtitle", methods=["POST"])
+def analyze_youtube_subtitle_api():
+    """分析YouTube视频中的指定英文人工字幕"""
+    try:
+        data = request.get_json() or {}
+        youtube_url = (data.get("youtube_url") or "").strip()
+        language_code = (data.get("language_code") or "").strip()
+
+        if not youtube_url:
+            return (
+                jsonify({"status": "error", "message": "缺少youtube_url参数"}),
+                400,
+            )
+        if not language_code:
+            return (
+                jsonify({"status": "error", "message": "缺少language_code参数"}),
+                400,
+            )
+
+        results = analyze_youtube_subtitle(youtube_url, language_code)
+        return jsonify(
+            {
+                "status": "success",
+                "results": results,
+                "total_words": len(results),
+            }
+        )
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except FileNotFoundError as e:
+        return jsonify({"status": "error", "message": str(e)}), 404
+    except RuntimeError as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    except Exception as e:
+        import traceback
+
+        error_detail = traceback.format_exc()
+        print(f"分析YouTube字幕时出错: {error_detail}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
