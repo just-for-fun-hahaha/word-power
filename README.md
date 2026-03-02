@@ -22,7 +22,8 @@ word-power/
 │   └── venv/         # Python虚拟环境（自动生成）
 ├── scripts/          # 前置处理脚本目录
 │   ├── extract_words_from_pdf.py      # PDF单词提取
-│   └── analyze_word_frequency.py      # SRT字幕词频统计
+│   ├── analyze_word_frequency.py      # SRT字幕词频统计
+│   └── generate_word_labels.py        # 生成单词标签CSV
 ├── Makefile          # 统一启动脚本
 └── README.md         # 项目说明文档
 ```
@@ -78,6 +79,14 @@ cd backend && source venv/bin/activate
 cd ../scripts && python filter_google_words.py
 ```
 过滤 `google-10000-words.txt` 中的真实单词，输出 `words_10000.txt`（使用与词频统计相同的验证逻辑）
+
+**生成单词标签文件：**
+```bash
+python3 scripts/generate_word_labels.py
+```
+基于 `words_3000.txt`、`words_5000.txt`、`words_10000.txt` 生成 `word_labels.csv`（统一管理单词标签，提高性能）
+- 优先级：3000 > 5000 > 10000（高优先级覆盖低优先级）
+- 首次使用前或更新词表文件后需要运行此脚本
 
 **脚本参数：**
 ```bash

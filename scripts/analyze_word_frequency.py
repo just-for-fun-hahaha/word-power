@@ -342,9 +342,9 @@ def process_srt_file(file_path):
 
 
 def analyze_subtitles(input_dir=None, output_file=None):
-    """分析inputs目录下的所有SRT文件，统计词频并保存到CSV"""
+    """分析inputs/srt目录下的所有SRT文件，统计词频并保存到CSV"""
     if input_dir is None:
-        input_dir = PROJECT_ROOT / "inputs"
+        input_dir = PROJECT_ROOT / "inputs" / "srt"
     else:
         input_dir = Path(input_dir)
 

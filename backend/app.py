@@ -6,9 +6,11 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from srt_analyzer import (
     analyze_srt_file,
+    analyze_txt_file,
     get_learning_progress,
     get_learning_stats,
     get_srt_files,
+    get_txt_files,
     get_unmastered_words,
     mark_word_mastered,
     unmark_word_mastered,
@@ -143,6 +145,51 @@ def unmastered_words():
 
         error_detail = traceback.format_exc()
         print(f"获取未掌握单词列表时出错: {error_detail}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/txt-files", methods=["GET"])
+def list_txt_files():
+    """获取所有TXT文件列表"""
+    try:
+        files = get_txt_files()
+        return jsonify({"status": "success", "files": files})
+    except Exception as e:
+        import traceback
+
+        error_detail = traceback.format_exc()
+        print(f"获取TXT文件列表时出错: {error_detail}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/analyze-txt", methods=["POST"])
+def analyze_txt():
+    """分析指定TXT文件，按顺序列出单词"""
+    try:
+        data = request.get_json()
+        file_path = data.get("file_path")
+
+        if not file_path:
+            return (
+                jsonify({"status": "error", "message": "缺少file_path参数"}),
+                400,
+            )
+
+        results = analyze_txt_file(file_path)
+        return jsonify(
+            {
+                "status": "success",
+                "results": results,
+                "total_words": len(results),
+            }
+        )
+    except FileNotFoundError as e:
+        return jsonify({"status": "error", "message": str(e)}), 404
+    except Exception as e:
+        import traceback
+
+        error_detail = traceback.format_exc()
+        print(f"分析TXT文件时出错: {error_detail}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

@@ -82,10 +82,9 @@ def lemmatize_words(words):
 
 
 def load_word_freq():
-    """加载words_freq.csv词频数据和标签"""
+    """加载words_freq.csv词频数据"""
     freq_file = PROJECT_ROOT / "words_freq.csv"
     word_freq = {}
-    word_labels = {}
 
     if freq_file.exists():
         try:
@@ -97,19 +96,41 @@ def load_word_freq():
                     try:
                         word = row["word"].lower()
                         freq = int(row.get("frequency", 0))
-                        label = row.get(
-                            "label", ""
-                        ).strip()  # 获取标签列，如果没有则为空
                         word_freq[word] = freq
-                        if label:
-                            word_labels[word] = label
                     except (ValueError, KeyError):
                         # 跳过格式错误的行
                         continue
         except Exception as e:
             print(f"警告: 读取 words_freq.csv 时出错: {e}")
 
-    return word_freq, word_labels
+    return word_freq
+
+
+def load_word_tags():
+    """从word_labels.csv加载单词标签"""
+    labels_file = PROJECT_ROOT / "word_labels.csv"
+    word_tags = {}
+
+    if labels_file.exists():
+        try:
+            with open(labels_file, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if not row or "word" not in row:
+                        continue
+                    word = row["word"].strip().lower()
+                    label = row.get("label", "").strip()
+                    if word and label:
+                        word_tags[word] = label
+        except Exception as e:
+            print(f"警告: 读取 word_labels.csv 时出错: {e}")
+    else:
+        print(
+            "警告: word_labels.csv 不存在，"
+            "请先运行 scripts/generate_word_labels.py 生成标签文件"
+        )
+
+    return word_tags
 
 
 def load_mastered_words():
@@ -208,7 +229,8 @@ def analyze_srt_file(file_path):
     word_count = Counter(lemmatized_words)
 
     # 加载全局词频和标签
-    global_freq, word_labels = load_word_freq()
+    global_freq = load_word_freq()
+    word_tags = load_word_tags()
 
     # 加载已标记为"烂熟于心"的单词
     mastered_words = load_mastered_words()
@@ -218,8 +240,8 @@ def analyze_srt_file(file_path):
     for word, count in word_count.items():
         global_frequency = global_freq.get(word, 0)
 
-        # 从CSV中获取标签
-        label = word_labels.get(word, "")
+        # 从词表文件获取标签
+        label = word_tags.get(word, "")
         tags = []
         if label == "3000":
             tags.append("常用3000")
@@ -322,13 +344,77 @@ def get_unmastered_words(label):
     return sorted(unmastered_words)
 
 
+def analyze_txt_file(file_path):
+    """分析指定TXT文件，按顺序列出所有不重复的单词"""
+    txt_path = PROJECT_ROOT / file_path.lstrip("/")
+
+    if not txt_path.exists():
+        raise FileNotFoundError(f"文件不存在: {file_path}")
+
+    with open(txt_path, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+
+    return analyze_txt_content(content)
+
+
+def analyze_txt_content(content):
+    """分析TXT文本内容，按顺序列出所有不重复的单词（含标签和mastered状态）"""
+    # 提取单词
+    words = extract_words_from_text(content)
+
+    # 词形还原
+    lemmatized_words = lemmatize_words(words)
+
+    # 去重但保持顺序
+    seen = set()
+    unique_words = []
+    for word in lemmatized_words:
+        if word not in seen:
+            seen.add(word)
+            unique_words.append(word)
+
+    # 加载标签和mastered数据
+    word_tags = load_word_tags()
+    mastered_words = load_mastered_words()
+
+    # 构建结果
+    results = []
+    for word in unique_words:
+        label = word_tags.get(word, "")
+        tags = []
+        if label == "3000":
+            tags.append("常用3000")
+        elif label == "5000":
+            tags.append("常用5000")
+        elif label == "10000":
+            tags.append("常用10000")
+
+        is_mastered = word in mastered_words
+
+        results.append(
+            {
+                "word": word,
+                "tags": tags,
+                "mastered": is_mastered,
+                "mastered_date": mastered_words.get(word, ""),
+            }
+        )
+
+    # 排序：未标记的保持原始顺序，已标记的排最后
+    unmastered = [r for r in results if not r["mastered"]]
+    mastered = [r for r in results if r["mastered"]]
+    results = unmastered + mastered
+
+    return results
+
+
 def get_srt_files():
-    """获取inputs目录下所有srt文件列表，按目录分组"""
-    inputs_dir = PROJECT_ROOT / "inputs"
+    """获取inputs/srt目录下所有srt文件列表，按目录分组"""
+    srt_dir = PROJECT_ROOT / "inputs" / "srt"
     files_by_dir = {}
 
-    if inputs_dir.exists():
-        for srt_file in inputs_dir.rglob("*.srt"):
+    if srt_dir.exists():
+        for srt_file in srt_dir.rglob("*.srt"):
             # 相对路径（用于前端显示和API调用）
             rel_path = srt_file.relative_to(PROJECT_ROOT)
             season = srt_file.parent.name
@@ -357,6 +443,24 @@ def get_srt_files():
     ]
 
     return result
+
+
+def get_txt_files():
+    """获取inputs/txt目录下所有txt文件列表"""
+    txt_dir = PROJECT_ROOT / "inputs" / "txt"
+    files = []
+
+    if txt_dir.exists():
+        for txt_file in sorted(txt_dir.glob("*.txt")):
+            rel_path = txt_file.relative_to(PROJECT_ROOT)
+            files.append(
+                {
+                    "path": str(rel_path).replace("\\", "/"),
+                    "name": txt_file.stem,  # 不带扩展名的文件名
+                }
+            )
+
+    return files
 
 
 def get_learning_stats(granularity="day"):

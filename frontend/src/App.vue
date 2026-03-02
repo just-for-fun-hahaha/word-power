@@ -3,32 +3,64 @@
     <div id="app">
       <a-layout class="layout">
         <a-layout-header class="header">
-          <h1>I Can See Your Progress</h1>
-          <a-button
-            type="primary"
-            @click="showStatsPage = true"
-            v-if="!showStatsPage"
-            style="margin-left: auto;"
-          >
-            <template #icon>
-              <BarChartOutlined />
-            </template>
-            统计图表
-          </a-button>
-          <a-button
-            type="default"
-            @click="showStatsPage = false"
-            v-if="showStatsPage"
-            style="margin-left: auto;"
-          >
-            <template #icon>
-              <ArrowLeftOutlined />
-            </template>
-            返回
-          </a-button>
+          <h1 @click="goHome" style="cursor: pointer;">I Can See Your Progress</h1>
+          <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+            <a-button
+              type="default"
+              @click="goHome"
+              v-if="currentPage !== 'home'"
+            >
+              <template #icon>
+                <HomeOutlined />
+              </template>
+              首页
+            </a-button>
+            <a-button
+              type="primary"
+              @click="showStatsPage = true"
+              v-if="currentPage === 'srt' && !showStatsPage"
+            >
+              <template #icon>
+                <BarChartOutlined />
+              </template>
+              统计图表
+            </a-button>
+            <a-button
+              type="default"
+              @click="showStatsPage = false"
+              v-if="currentPage === 'srt' && showStatsPage"
+            >
+              <template #icon>
+                <ArrowLeftOutlined />
+              </template>
+              返回
+            </a-button>
+          </div>
         </a-layout-header>
 
         <a-layout-content class="main-content">
+          <!-- ========== 首页 ========== -->
+          <div v-if="currentPage === 'home'" class="home-page">
+            <div class="home-title">
+              <h2>选择学习材料</h2>
+              <p>选择你要分析的字幕类型</p>
+            </div>
+            <div class="home-buttons">
+              <div class="home-card" @click="currentPage = 'srt'">
+                <div class="home-card-icon">🎬</div>
+                <div class="home-card-title">美剧字幕</div>
+                <div class="home-card-desc">分析 SRT 字幕文件词频，筛选高价值词汇</div>
+              </div>
+              <div class="home-card" @click="currentPage = 'ted'">
+                <div class="home-card-icon">🎤</div>
+                <div class="home-card-title">TED字幕</div>
+                <div class="home-card-desc">导入 TXT 文本，按顺序列出所有单词</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ========== 美剧字幕页面 ========== -->
+          <div v-if="currentPage === 'srt'">
           <!-- 统计页面 -->
           <div v-if="showStatsPage" class="stats-page">
             <div class="stats-header">
@@ -334,6 +366,259 @@
               </div>
             </div>
           </div>
+          </div>
+
+          <!-- ========== TED字幕页面 ========== -->
+          <div v-if="currentPage === 'ted'" class="content-wrapper">
+            <!-- 左侧：表格区域 -->
+            <div class="table-section">
+              <div class="section-header">
+                <h2>单词列表</h2>
+              </div>
+
+              <a-table
+                :columns="tedColumns"
+                :data-source="tedFilteredResults"
+                :pagination="tedPagination"
+                :scroll="{ x: 'max-content', y: 'calc(100vh - 320px)' }"
+                row-key="word"
+                :loading="tedLoading"
+                :row-class-name="(record) => (record.mastered ? 'mastered-row' : '')"
+                @change="handleTedTableChange"
+              >
+                <template #headerCell="{ column }">
+                  <template v-if="column.key === 'word'">
+                    <div style="display: flex; align-items: center; gap: 8px">
+                      <a-button
+                        type="link"
+                        size="default"
+                        title="将当前页所有单词标记为烂熟于心"
+                        @click="markTedCurrentPageMastered"
+                        style="padding: 0; height: auto; font-size: 16px"
+                      >
+                        <CheckCircleOutlined style="color: #52c41a; font-size: 18px;" />
+                      </a-button>
+                      <span>单词</span>
+                    </div>
+                  </template>
+                </template>
+                <template #bodyCell="{ column, record, index }">
+                  <template v-if="column.key === 'index'">
+                    {{ (tedPagination.current - 1) * tedPagination.pageSize + index + 1 }}
+                  </template>
+                  <template v-if="column.key === 'word'">
+                    <div
+                      style="display: flex; align-items: center; gap: 8px"
+                      :style="record.mastered ? { opacity: 0.5 } : {}"
+                    >
+                      <a-button
+                        v-if="!record.mastered"
+                        type="text"
+                        size="small"
+                        title="标记为烂熟于心"
+                        @click="markWordMastered(record.word, 'ted')"
+                        style="padding: 0; min-width: auto; flex-shrink: 0;"
+                      >
+                        <template #icon>
+                          <CheckCircleOutlined style="color: #52c41a" />
+                        </template>
+                      </a-button>
+                      <a-button
+                        v-else
+                        type="text"
+                        size="small"
+                        title="取消标记"
+                        @click="unmarkWordMastered(record.word, 'ted')"
+                        style="padding: 0; min-width: auto; flex-shrink: 0;"
+                      >
+                        <template #icon>
+                          <CheckCircleFilled style="color: #999" />
+                        </template>
+                      </a-button>
+                      <strong style="font-size: 20px; font-weight: 600;">{{ record.word }}</strong>
+                    </div>
+                  </template>
+                  <template v-if="column.key === 'tags'">
+                    <a-tag
+                      v-for="tag in record.tags"
+                      :key="tag"
+                      :color="
+                        tag === '常用3000'
+                          ? 'green'
+                          : tag === '常用5000'
+                          ? 'blue'
+                          : tag === '常用10000'
+                          ? 'orange'
+                          : 'default'
+                      "
+                      style="cursor: pointer;"
+                      @click.stop="filterTedByTag(tag)"
+                      :style="
+                        tedSelectedTagFilter === tag
+                          ? 'border: 2px solid #1890ff; font-weight: 600;'
+                          : ''
+                      "
+                    >
+                      {{ tag }}
+                    </a-tag>
+                    <span v-if="record.tags.length === 0" style="color: #ccc">-</span>
+                  </template>
+                </template>
+              </a-table>
+            </div>
+
+            <!-- 右侧：配置区域 -->
+            <div class="config-section">
+              <div class="section-header">
+                <h2>分析与统计</h2>
+              </div>
+
+              <div class="config-content">
+                <a-alert
+                  v-if="tedError"
+                  :message="tedError"
+                  type="error"
+                  show-icon
+                  closable
+                  @close="tedError = ''"
+                  style="margin-bottom: 20px"
+                />
+
+                <div class="config-top-section">
+                  <div class="config-selects-group">
+                    <div class="section-header">
+                      <h2>选择材料</h2>
+                    </div>
+                    <div class="config-item-inline">
+                      <label>选择文件：</label>
+                      <a-select
+                        v-model:value="selectedTxtFile"
+                        placeholder="请选择TXT文件"
+                        style="width: 200px"
+                        :disabled="tedLoading"
+                      >
+                        <a-select-option
+                          v-for="file in txtFiles"
+                          :key="file.path"
+                          :value="file.path"
+                        >
+                          {{ file.name }}
+                        </a-select-option>
+                      </a-select>
+                    </div>
+
+                    <a-button
+                      type="primary"
+                      :loading="tedLoading"
+                      :disabled="!selectedTxtFile"
+                      @click="analyzeTedFile"
+                      size="large"
+                      class="analyze-button"
+                    >
+                      开始解析
+                    </a-button>
+                  </div>
+
+                  <!-- 右侧：学习进度 -->
+                  <div class="learning-progress-section" v-if="learningProgress">
+                    <div class="section-header">
+                      <h2>学习进度（全局）</h2>
+                    </div>
+                    <div class="progress-content">
+                      <div
+                        class="progress-item"
+                        v-for="(progress, label) in learningProgress"
+                        :key="label"
+                        style="cursor: pointer;"
+                        @click="showUnmasteredWords(label, progress)"
+                      >
+                        <div class="progress-header">
+                          <span class="progress-label">常用{{ label }}</span>
+                          <span class="progress-percentage"
+                            >{{ progress.mastered }} / {{ progress.total }} ({{
+                              progress.percentage
+                            }}%)</span
+                          >
+                        </div>
+                        <a-progress
+                          :percent="progress.percentage"
+                          :stroke-color="
+                            label === '3000'
+                              ? '#52c41a'
+                              : label === '5000'
+                              ? '#1890ff'
+                              : '#fa8c16'
+                          "
+                          :show-info="false"
+                          size="small"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 统计概览 -->
+                <div class="overview-section" v-if="tedResults.length > 0">
+                  <div class="section-header">
+                    <h2>统计概览</h2>
+                  </div>
+                  <div class="overview-content">
+                    <div class="overview-item">
+                      <div class="overview-label">词汇量（不重复）</div>
+                      <div class="overview-value">{{ tedResults.length }}</div>
+                    </div>
+                    <div class="overview-item">
+                      <div class="overview-label">烂熟于心</div>
+                      <div class="overview-value mastered-count">
+                        {{ tedResults.filter(item => item.mastered).length }}
+                      </div>
+                    </div>
+                    <div class="overview-item" v-if="tedTagCounts.common3000.total > 0">
+                      <div class="overview-label">常用3000</div>
+                      <div class="overview-value">
+                        <span class="value-unmastered">{{ tedTagCounts.common3000.unmastered }}</span>
+                        <span class="value-detail"
+                          >（总<span class="value-total">{{ tedTagCounts.common3000.total }}</span
+                          >熟<span class="value-mastered">{{ tedTagCounts.common3000.mastered }}</span>）</span
+                        >
+                      </div>
+                    </div>
+                    <div class="overview-item" v-if="tedTagCounts.common5000.total > 0">
+                      <div class="overview-label">常用5000</div>
+                      <div class="overview-value">
+                        <span class="value-unmastered">{{ tedTagCounts.common5000.unmastered }}</span>
+                        <span class="value-detail"
+                          >（总<span class="value-total">{{ tedTagCounts.common5000.total }}</span
+                          >熟<span class="value-mastered">{{ tedTagCounts.common5000.mastered }}</span>）</span
+                        >
+                      </div>
+                    </div>
+                    <div class="overview-item" v-if="tedTagCounts.common10000.total > 0">
+                      <div class="overview-label">常用10000</div>
+                      <div class="overview-value">
+                        <span class="value-unmastered">{{ tedTagCounts.common10000.unmastered }}</span>
+                        <span class="value-detail"
+                          >（总<span class="value-total">{{ tedTagCounts.common10000.total }}</span
+                          >熟<span class="value-mastered">{{ tedTagCounts.common10000.mastered }}</span>）</span
+                        >
+                      </div>
+                    </div>
+                    <div class="overview-item" v-if="tedTagCounts.nonCommon.total > 0">
+                      <div class="overview-label">非10000内</div>
+                      <div class="overview-value">
+                        <span class="value-unmastered">{{ tedTagCounts.nonCommon.unmastered }}</span>
+                        <span class="value-detail"
+                          >（总<span class="value-total">{{ tedTagCounts.nonCommon.total }}</span
+                          >熟<span class="value-mastered">{{ tedTagCounts.nonCommon.mastered }}</span>）</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </a-layout-content>
       </a-layout>
     </div>
@@ -419,10 +704,19 @@ import {
   CloseOutlined,
   BarChartOutlined,
   ArrowLeftOutlined,
+  HomeOutlined,
 } from "@ant-design/icons-vue";
 import { message, Modal } from "ant-design-vue";
 
 const locale = zhCN;
+
+// 页面导航状态
+const currentPage = ref("home"); // 'home' | 'srt' | 'ted'
+
+function goHome() {
+  currentPage.value = "home";
+  showStatsPage.value = false;
+}
 
 // 统计页面相关状态
 const showStatsPage = ref(false);
@@ -588,8 +882,7 @@ const tagCounts = computed(() => {
 });
 
 onMounted(async () => {
-  await loadSrtFiles();
-  await loadLearningProgress();
+  await Promise.all([loadSrtFiles(), loadTxtFiles(), loadLearningProgress()]);
 });
 
 // 监听统计页面显示状态，自动加载数据
@@ -1007,7 +1300,7 @@ async function analyzeFile() {
   }
 }
 
-async function markWordMastered(word) {
+async function markWordMastered(word, source = 'srt') {
   try {
     const response = await fetch("/api/mark-mastered", {
       method: "POST",
@@ -1021,18 +1314,29 @@ async function markWordMastered(word) {
 
     if (data.status === "success") {
       message.success("已标记为烂熟于心");
-      // 更新当前结果中的标记状态
-      const item = results.value.find((r) => r.word === word);
-      if (item) {
-        item.mastered = true;
-        item.mastered_date = new Date().toISOString().split("T")[0];
-        // 重新排序：已标记的排到最后
-        results.value.sort((a, b) => {
-          if (a.mastered !== b.mastered) {
-            return a.mastered ? 1 : -1;
-          }
-          return b.frequency - a.frequency;
-        });
+      if (source === 'ted') {
+        // 更新TED结果
+        const item = tedResults.value.find((r) => r.word === word);
+        if (item) {
+          item.mastered = true;
+          item.mastered_date = new Date().toISOString().split("T")[0];
+          const unmastered = tedResults.value.filter((r) => !r.mastered);
+          const mastered = tedResults.value.filter((r) => r.mastered);
+          tedResults.value = [...unmastered, ...mastered];
+        }
+      } else {
+        // 更新SRT结果
+        const item = results.value.find((r) => r.word === word);
+        if (item) {
+          item.mastered = true;
+          item.mastered_date = new Date().toISOString().split("T")[0];
+          results.value.sort((a, b) => {
+            if (a.mastered !== b.mastered) {
+              return a.mastered ? 1 : -1;
+            }
+            return b.frequency - a.frequency;
+          });
+        }
       }
       // 如果是在未学习单词弹框中标记，将单词添加到已标记集合（保留在原位，置灰显示）
       if (unmasteredWordsModal.value.visible) {
@@ -1048,7 +1352,7 @@ async function markWordMastered(word) {
   }
 }
 
-async function unmarkWordMastered(word) {
+async function unmarkWordMastered(word, source = 'srt') {
   try {
     const response = await fetch("/api/unmark-mastered", {
       method: "POST",
@@ -1062,18 +1366,27 @@ async function unmarkWordMastered(word) {
 
     if (data.status === "success") {
       message.success("已取消标记");
-      // 更新当前结果中的标记状态
-      const item = results.value.find((r) => r.word === word);
-      if (item) {
-        item.mastered = false;
-        item.mastered_date = "";
-        // 重新排序：未标记的按词频降序，已标记的排最后
-        results.value.sort((a, b) => {
-          if (a.mastered !== b.mastered) {
-            return a.mastered ? 1 : -1;
-          }
-          return b.frequency - a.frequency;
-        });
+      if (source === 'ted') {
+        const item = tedResults.value.find((r) => r.word === word);
+        if (item) {
+          item.mastered = false;
+          item.mastered_date = "";
+          const unmastered = tedResults.value.filter((r) => !r.mastered);
+          const mastered = tedResults.value.filter((r) => r.mastered);
+          tedResults.value = [...unmastered, ...mastered];
+        }
+      } else {
+        const item = results.value.find((r) => r.word === word);
+        if (item) {
+          item.mastered = false;
+          item.mastered_date = "";
+          results.value.sort((a, b) => {
+            if (a.mastered !== b.mastered) {
+              return a.mastered ? 1 : -1;
+            }
+            return b.frequency - a.frequency;
+          });
+        }
       }
       // 刷新学习进度
       await loadLearningProgress();
@@ -1245,6 +1558,322 @@ function markCurrentPageMastered() {
   };
 
   // 显示确认对话框
+  modalInstance = Modal.confirm({
+    title: "确认标记为烂熟于心",
+    width: 500,
+    content: createContent(),
+    okText: "确认标记",
+    cancelText: "取消",
+    onOk: handleOk,
+  });
+}
+
+// ========== TED字幕页面相关 ==========
+
+const tedColumns = [
+  {
+    title: "序号",
+    key: "index",
+    width: 80,
+    align: "left",
+  },
+  {
+    title: "单词",
+    dataIndex: "word",
+    key: "word",
+    width: 200,
+    fixed: "left",
+    align: "left",
+  },
+  {
+    title: "标签",
+    key: "tags",
+    width: 150,
+    align: "left",
+  },
+];
+
+const txtFiles = ref([]);
+const selectedTxtFile = ref("");
+const tedResults = ref([]);
+const tedLoading = ref(false);
+const tedError = ref("");
+const tedSelectedTagFilter = ref(null);
+const tedPagination = ref({
+  current: 1,
+  pageSize: 20,
+  showSizeChanger: true,
+  pageSizeOptions: ["10", "20", "50", "100"],
+  showTotal: (total) => `共 ${total} 条`,
+});
+
+const tedFilteredResults = computed(() => {
+  if (!tedSelectedTagFilter.value) {
+    return tedResults.value;
+  }
+
+  if (tedSelectedTagFilter.value === "非10000内") {
+    return tedResults.value.filter((item) => {
+      return (
+        !item.tags.includes("常用3000") &&
+        !item.tags.includes("常用5000") &&
+        !item.tags.includes("常用10000")
+      );
+    });
+  }
+
+  return tedResults.value.filter((item) =>
+    item.tags.includes(tedSelectedTagFilter.value)
+  );
+});
+
+const tedTagCounts = computed(() => {
+  const counts = {
+    common3000: { total: 0, mastered: 0, unmastered: 0 },
+    common5000: { total: 0, mastered: 0, unmastered: 0 },
+    common10000: { total: 0, mastered: 0, unmastered: 0 },
+    nonCommon: { total: 0, mastered: 0, unmastered: 0 },
+  };
+  tedResults.value.forEach((item) => {
+    const isInCommonList =
+      item.tags.includes("常用3000") ||
+      item.tags.includes("常用5000") ||
+      item.tags.includes("常用10000");
+
+    if (item.tags.includes("常用3000")) {
+      counts.common3000.total++;
+      if (item.mastered) counts.common3000.mastered++;
+      else counts.common3000.unmastered++;
+    }
+    if (item.tags.includes("常用5000")) {
+      counts.common5000.total++;
+      if (item.mastered) counts.common5000.mastered++;
+      else counts.common5000.unmastered++;
+    }
+    if (item.tags.includes("常用10000")) {
+      counts.common10000.total++;
+      if (item.mastered) counts.common10000.mastered++;
+      else counts.common10000.unmastered++;
+    }
+    if (!isInCommonList) {
+      counts.nonCommon.total++;
+      if (item.mastered) counts.nonCommon.mastered++;
+      else counts.nonCommon.unmastered++;
+    }
+  });
+  return counts;
+});
+
+async function loadTxtFiles() {
+  try {
+    const response = await fetch("/api/txt-files");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    if (data.status === "success") {
+      txtFiles.value = data.files;
+    } else {
+      tedError.value = "加载文件列表失败: " + (data.message || "未知错误");
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    tedError.value = "无法连接到服务器: " + errorMsg;
+    console.error("加载TXT文件列表失败:", err);
+  }
+}
+
+async function analyzeTedFile() {
+  if (!selectedTxtFile.value) return;
+
+  tedLoading.value = true;
+  tedError.value = "";
+  tedResults.value = [];
+
+  try {
+    const response = await fetch("/api/analyze-txt", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        file_path: selectedTxtFile.value,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.status === "success") {
+      tedResults.value = data.results.map((item) => ({
+        ...item,
+        mastered: item.mastered || false,
+        mastered_date: item.mastered_date || "",
+      }));
+      tedSelectedTagFilter.value = null;
+      tedPagination.value.current = 1;
+    } else {
+      tedError.value = "解析失败: " + (data.message || "未知错误");
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    tedError.value = "请求失败: " + errorMsg;
+    console.error("解析TXT文件失败:", err);
+  } finally {
+    tedLoading.value = false;
+  }
+}
+
+function handleTedTableChange(pag) {
+  tedPagination.value.current = pag.current;
+  tedPagination.value.pageSize = pag.pageSize;
+}
+
+function filterTedByTag(tag) {
+  if (tedSelectedTagFilter.value === tag) {
+    tedSelectedTagFilter.value = null;
+  } else {
+    tedSelectedTagFilter.value = tag;
+  }
+  tedPagination.value.current = 1;
+}
+
+function markTedCurrentPageMastered() {
+  if (!tedResults.value.length) return;
+
+  const currentPage = tedPagination.value.current || 1;
+  const pageSize = tedPagination.value.pageSize || 20;
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  const currentPageData = tedFilteredResults.value.slice(startIndex, endIndex);
+  const initialWords = currentPageData.filter((item) => !item.mastered);
+
+  if (initialWords.length === 0) {
+    message.info("当前页没有未标记的单词");
+    return;
+  }
+
+  const wordsToMark = ref([...initialWords]);
+  let modalInstance = null;
+
+  const createContent = () => {
+    return h("div", [
+      h("p", { style: "margin-bottom: 12px" }, [
+        `将要标记 `,
+        h("strong", { style: "color: #1890ff" }, wordsToMark.value.length),
+        ` 个单词：`,
+      ]),
+      h(
+        "div",
+        {
+          style:
+            "max-height: 300px; overflow-y: auto; border: 1px solid #d9d9d9; border-radius: 4px; padding: 12px; background: #fafafa",
+        },
+        [
+          wordsToMark.value.length === 0
+            ? h("p", { style: "color: #999; text-align: center; padding: 20px" }, "已移除所有单词")
+            : h(
+                "div",
+                {
+                  style: "display: flex; flex-wrap: wrap; gap: 8px; line-height: 1.8",
+                },
+                wordsToMark.value.map((item) =>
+                  h(
+                    "span",
+                    {
+                      key: item.word,
+                      style:
+                        "display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #fff; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px",
+                    },
+                    [
+                      item.word,
+                      h(
+                        "span",
+                        {
+                          style:
+                            "cursor: pointer; color: #999; display: inline-flex; align-items: center; padding: 2px; transition: color 0.2s",
+                          onMouseenter: (e) => { e.target.style.color = "#ff4d4f"; },
+                          onMouseleave: (e) => { e.target.style.color = "#999"; },
+                          onClick: () => {
+                            const wordIndex = wordsToMark.value.findIndex((w) => w.word === item.word);
+                            if (wordIndex > -1) {
+                              wordsToMark.value.splice(wordIndex, 1);
+                              if (modalInstance) {
+                                Modal.destroyAll();
+                                modalInstance = Modal.confirm({
+                                  title: "确认标记为烂熟于心",
+                                  width: 500,
+                                  content: createContent(),
+                                  okText: "确认标记",
+                                  cancelText: "取消",
+                                  onOk: handleOk,
+                                });
+                              }
+                            }
+                          },
+                        },
+                        [h(CloseOutlined, { style: "font-size: 12px" })]
+                      ),
+                    ]
+                  )
+                ),
+              ),
+        ]
+      ),
+    ]);
+  };
+
+  const handleOk = async () => {
+    if (wordsToMark.value.length === 0) {
+      message.info("没有要标记的单词");
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const item of wordsToMark.value) {
+      try {
+        const response = await fetch("/api/mark-mastered", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ word: item.word }),
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+          const resultItem = tedResults.value.find((r) => r.word === item.word);
+          if (resultItem) {
+            resultItem.mastered = true;
+            resultItem.mastered_date = new Date().toISOString().split("T")[0];
+          }
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err) {
+        failCount++;
+      }
+    }
+
+    // 重新排序：已标记的排到最后，未标记的保持原始顺序
+    const unmastered = tedResults.value.filter((r) => !r.mastered);
+    const mastered = tedResults.value.filter((r) => r.mastered);
+    tedResults.value = [...unmastered, ...mastered];
+
+    await loadLearningProgress();
+
+    if (successCount > 0) {
+      message.success(`成功标记 ${successCount} 个单词为烂熟于心`);
+    }
+    if (failCount > 0) {
+      message.warning(`${failCount} 个单词标记失败`);
+    }
+  };
+
   modalInstance = Modal.confirm({
     title: "确认标记为烂熟于心",
     width: 500,
@@ -1620,6 +2249,78 @@ body {
   .config-section {
     padding: 15px;
   }
+}
+
+/* 首页样式 */
+.home-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 150px);
+  padding: 40px;
+}
+
+.home-title {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.home-title h2 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #262626;
+  margin: 0 0 8px 0;
+}
+
+.home-title p {
+  font-size: 16px;
+  color: #666;
+  margin: 0;
+}
+
+.home-buttons {
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.home-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 48px 40px;
+  width: 300px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.home-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 32px rgba(24, 144, 255, 0.15);
+  border-color: #1890ff;
+}
+
+.home-card-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  line-height: 1;
+}
+
+.home-card-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #262626;
+  margin-bottom: 12px;
+}
+
+.home-card-desc {
+  font-size: 14px;
+  color: #888;
+  line-height: 1.6;
 }
 
 /* 统计页面样式 */
