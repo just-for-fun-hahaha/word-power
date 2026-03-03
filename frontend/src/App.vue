@@ -81,7 +81,6 @@
                 <input
                   ref="homeSubtitleInputRef"
                   type="file"
-                  accept=".srt,.vtt,.json"
                   style="display: none"
                   :disabled="homeParseLoading"
                   @change="handleHomeSubtitleFileChange"
