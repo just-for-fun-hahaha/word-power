@@ -1,116 +1,108 @@
-# 英文词频统计程序设计
+# Word Power（纯前端版）
 
-## 技术选型
+一个用于英语学习的本地网页工具：
+- 输入 YouTube 链接
+- 导入本地字幕（`.srt/.vtt/.json`）
+- 进入播放器做句子级跟读与 AB 练习
+- 对当前字幕做词汇分析、标记已掌握词、查看学习统计
 
-- 开发语言：vue3+python3
-- 依赖与虚拟环境：pip3+venv
-- 核心依赖：pandas,nltk
-- 前端框架：Vue 3 + Vite
-- 后端框架：Flask
+## 部署方式
+
+只保留一种部署方式：`GitHub Pages`。
+- 不再考虑本地 `file://` 或本地静态服务器部署。
+- Mac、iPad 都通过同一个 GitHub Pages 地址访问。
+- 构建与发布由 GitHub Actions 完成，无需本地启动服务。
+
+## 技术栈
+
+- 前端：Vue 3 + Vite + Ant Design Vue + ECharts
+- 字幕下载脚本（可选）：Python + `youtube-transcript-api`
 
 ## 项目结构
 
-```
+```text
 word-power/
-├── frontend/          # 前端项目（Vue3）
-│   ├── src/          # 源代码目录
-│   ├── package.json  # 前端依赖配置
-│   └── vite.config.js # Vite配置文件
-├── backend/          # 后端项目（Python/Flask）
-│   ├── app.py        # Flask应用入口
-│   ├── requirements.txt # Python依赖列表
-│   └── venv/         # Python虚拟环境（自动生成）
-├── scripts/          # 前置处理脚本目录
-│   ├── extract_words_from_pdf.py      # PDF单词提取
-│   ├── analyze_word_frequency.py      # SRT字幕词频统计
-│   └── generate_word_labels.py        # 生成单词标签CSV
-├── Makefile          # 统一启动脚本
-└── README.md         # 项目说明文档
+├── frontend/
+│   ├── public/
+│   │   └── word_labels.csv      # 默认词表（启动时自动加载）
+│   └── src/App.vue              # 主应用（播放器 + 词汇学习）
+├── backend/
+│   └── requirements.txt         # 字幕下载脚本依赖（保留给 venv 使用）
+├── scripts/
+│   └── download_youtube_subtitles.py  # 按链接下载字幕到本地
+├── mastered_words.csv           # 历史掌握词示例数据
+└── word_labels.csv              # 词表源文件
 ```
 
-### 安装依赖
+## Make 命令（推荐）
 
 ```bash
-# 安装所有依赖（前端+后端）
-make install
-
-# 或者分别安装
-make install-frontend  # 只安装前端依赖
-make install-backend   # 只安装后端依赖（创建虚拟环境）
+make help
 ```
 
-### 启动开发服务器
+常用命令：
+- `make install`：安装前端依赖
+- `make dev`：启动本地开发服务器
+- `make test`：执行构建测试（检查是否可正常打包）
+- `make build`：生成生产构建
+- `make pages-build REPO=word-power`：按 GitHub Pages 路径构建
+- `make preview`：本地预览构建结果（端口 `4173`）
+- `make clean`：清理构建产物
+- `make clean-all`：清理构建产物和依赖
 
-```bash
-# 同时启动前后端开发服务器（推荐）
-make dev
+## GitHub Pages 部署（唯一方案）
 
-# 或者分别启动
-make dev-frontend  # 前端：http://localhost:3000
-make dev-backend   # 后端：http://localhost:8000
-```
+### 1) 已内置自动部署工作流
 
-### 其他命令
+仓库已包含：
+- `.github/workflows/deploy-pages.yml`
 
-```bash
-make help          # 查看所有可用命令
-make clean         # 清理生成的文件（node_modules, venv等）
-```
+行为：
+- 每次推送到 `main` 分支会自动构建 `frontend` 并部署到 GitHub Pages。
+- 支持手动触发（`workflow_dispatch`）。
+- `VITE_BASE` 在 CI 中按仓库名自动计算，无需手动改 `vite.config.js`。
 
-### 使用脚本
+### 2) 开启 Pages
 
-**PDF单词提取：**
-```bash
-cd backend && source venv/bin/activate
-cd ../scripts && python extract_words_from_pdf.py
-```
-提取PDF中的单词到 `words_5000.txt` 和 `words_3000.txt`
+在 GitHub 仓库页面：
+1. 进入 `Settings -> Pages`。
+2. `Source` 选择 `GitHub Actions`。
+3. 推送到 `main` 分支后自动发布。
 
-**词频统计：**
-```bash
-cd backend && source venv/bin/activate
-cd ../scripts && python analyze_word_frequency.py
-```
-分析 `inputs/` 目录下的SRT字幕文件，输出 `words_freq.csv`（词频统计，动词已转为原型）
+### 3) 访问地址
 
-**过滤Google单词列表：**
-```bash
-cd backend && source venv/bin/activate
-cd ../scripts && python filter_google_words.py
-```
-过滤 `google-10000-words.txt` 中的真实单词，输出 `words_10000.txt`（使用与词频统计相同的验证逻辑）
+发布成功后访问：
+- `https://<你的GitHub用户名>.github.io/<你的仓库名>/`
 
-**生成单词标签文件：**
-```bash
-python3 scripts/generate_word_labels.py
-```
-基于 `words_3000.txt`、`words_5000.txt`、`words_10000.txt` 生成 `word_labels.csv`（统一管理单词标签，提高性能）
-- 优先级：3000 > 5000 > 10000（高优先级覆盖低优先级）
-- 首次使用前或更新词表文件后需要运行此脚本
+这个地址在 Mac 和 iPad 上都可直接访问。
 
-**脚本参数：**
-```bash
-# 词频统计
-python analyze_word_frequency.py -i inputs -o words_freq.csv
+## 使用流程
 
-# 过滤Google单词
-python filter_google_words.py -i google-10000-words.txt -o words_10000.txt
-```
+1. 首次打开页面先上传：
+   - 词表文件（`word_labels.csv`）
+   - 学习数据文件（JSON 或 `mastered_words.csv`）
+2. 系统会显示当前“词表版本”和“学习数据版本”（使用文件名作为版本标识）。
+3. 首页输入 YouTube 链接并选择本地字幕文件（`.srt/.vtt/.json`）。
+4. 点击“开始解析”，解析成功后点击“开始学习”。
+5. 在播放器页可进行单句播放、顺序播放、AB 播放（自动循环）、词汇分析。
 
-### 手动启动（不使用Makefile）
+## 学习数据持久化（浏览器）
 
-**前端：**
-```bash
-cd frontend
-npm install
-npm run dev
-```
+- 默认存储：`localStorage`
+- 上传后版本名固定为：`word_labels.csv`、`mastered_words.csv` / `learning_data.csv`（新上传会覆盖旧数据）
+- 可导出：`导出学习数据`（CSV，含掌握词 + 视频历史）、`导出掌握词CSV`（兼容 `mastered_words.csv`）
+- 导出文件名会自动附加导出时间戳（`YYYYMMDD-HHmmss`），便于备份识别
+- 可导入：`learning_data.csv`、`mastered_words.csv`（`word,date`）
 
-**后端：**
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python app.py
-```
+跨设备迁移方式：在旧设备导出，再在新设备导入。
+
+## 词表（word_labels.csv）
+
+- 页面启动时需先上传词表文件。
+- 上传后会缓存到浏览器本地，并显示对应文件名版本。
+- 后续也可在页面中重新上传新词表进行替换。
+
+## YouTube 字幕下载脚本（可选）
+
+如果你没有现成字幕文件，可用 `scripts/download_youtube_subtitles.py` 下载后再导入页面。  
+脚本的安装与使用说明已写在脚本头部注释中。
