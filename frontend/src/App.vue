@@ -81,6 +81,7 @@
                 <input
                   ref="homeSubtitleInputRef"
                   type="file"
+                  :accept="homeSubtitleAccept"
                   style="display: none"
                   :disabled="homeParseLoading"
                   @change="handleHomeSubtitleFileChange"
@@ -813,6 +814,19 @@ const SINGLE_LINE_STOP_BUFFER = 0.04;
 const SINGLE_LINE_EARLY_PAUSE_SEC = 0.12;
 const SINGLE_LINE_MIN_DURATION_SEC = 0.12;
 const SINGLE_LINE_NEXT_GUARD_SEC = 0.01;
+const DEFAULT_SUBTITLE_ACCEPT = ".srt,.vtt,.json";
+
+function isIOSLikeDevice() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const maxTouchPoints = Number(navigator.maxTouchPoints || 0);
+  const isIOSUA = /iPad|iPhone|iPod/i.test(ua);
+  const isIPadOSDesktopUA = platform === "MacIntel" && maxTouchPoints > 1;
+  return isIOSUA || isIPadOSDesktopUA;
+}
+
+const homeSubtitleAccept = isIOSLikeDevice() ? "*/*" : DEFAULT_SUBTITLE_ACCEPT;
 
 // 页面导航状态
 const currentPage = ref("home"); // 'home' | 'ted' | 'player' | 'settings'
