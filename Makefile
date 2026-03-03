@@ -19,12 +19,12 @@ build: ## 构建生产包
 test: ## 构建测试（检查是否可打包）
 	cd $(FRONTEND_DIR) && npm run build
 
-pages-build: ## GitHub Pages 路径构建：make pages-build REPO=word-power
-	@if [ -z "$(REPO)" ]; then \
-		echo "请传入 REPO 参数，例如: make pages-build REPO=word-power"; \
-		exit 1; \
-	fi
-	cd $(FRONTEND_DIR) && VITE_BASE="/$(REPO)/" npm run build
+pages-build: ## 构建 GitHub Pages 分支发布目录（main/dist）
+	cd $(FRONTEND_DIR) && VITE_BASE=./ npm run build
+	rm -rf dist
+	mkdir -p dist
+	cp -R $(FRONTEND_DIR)/dist/* dist/
+	@echo "已同步 frontend/dist 到 dist/，请提交后在 GitHub Pages 选择 Source=Deploy from a branch（main/dist）"
 
 preview: ## 预览构建产物（默认4173）
 	cd $(FRONTEND_DIR) && npm run preview -- --host --port 4173

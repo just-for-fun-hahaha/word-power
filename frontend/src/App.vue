@@ -666,7 +666,7 @@
     >
       <div class="setup-modal-body">
         <p class="setup-modal-desc">
-          首次使用或版本缺失时，需先导入词表和学习数据文件，文件名将作为当前版本标识。
+          首次使用或版本缺失时，会优先读取同目录 word_labels.csv；若读取失败，再手动导入词表和学习数据文件。
         </p>
 
         <div class="setup-modal-item">
@@ -1341,6 +1341,7 @@ onMounted(async () => {
   loadPlayerHistory();
   loadWordLabelsFromStorage();
   loadDataVersionsFromStorage();
+  await tryLoadWordLabelsFromLocalIfNeeded();
   ensureSetupModalState();
   await loadLearningProgress();
   window.addEventListener("keydown", handlePlayerKeyboardShortcuts);
@@ -2097,6 +2098,38 @@ function saveWordLabelsVersion(version) {
   localStorage.setItem(WORD_LABELS_VERSION_STORAGE_KEY, version);
 }
 
+function applyWordLabels(parsed, version = FIXED_WORD_LABELS_FILE_NAME) {
+  wordLabelsMap.value = parsed;
+  saveWordLabelsToStorage();
+  saveWordLabelsVersion(version);
+  refreshTedMasteredFlags();
+}
+
+async function tryLoadWordLabelsFromLocalIfNeeded() {
+  if (wordLabelsMap.value.size > 0 && wordLabelsVersion.value) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`./${FIXED_WORD_LABELS_FILE_NAME}`, { method: "GET" });
+    if (!response.ok) {
+      return false;
+    }
+
+    const text = await response.text();
+    const parsed = parseWordLabelsCsv(text);
+    if (!parsed.size) {
+      return false;
+    }
+
+    applyWordLabels(parsed, FIXED_WORD_LABELS_FILE_NAME);
+    return true;
+  } catch (err) {
+    console.warn("读取本地词表失败:", err);
+    return false;
+  }
+}
+
 function saveLearningDataVersion(version) {
   learningDataVersion.value = version;
   localStorage.setItem(LEARNING_DATA_VERSION_STORAGE_KEY, version);
@@ -2499,10 +2532,7 @@ async function importWordLabelsFromFile(file) {
     throw new Error("词表为空或格式错误");
   }
 
-  wordLabelsMap.value = parsed;
-  saveWordLabelsToStorage();
-  saveWordLabelsVersion(FIXED_WORD_LABELS_FILE_NAME);
-  refreshTedMasteredFlags();
+  applyWordLabels(parsed, FIXED_WORD_LABELS_FILE_NAME);
   await loadLearningProgress();
   ensureSetupModalState();
   return `词表导入成功，共 ${parsed.size} 个单词`;

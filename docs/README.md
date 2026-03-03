@@ -11,7 +11,7 @@
 只保留一种部署方式：`GitHub Pages`。
 - 不再考虑本地 `file://` 或本地静态服务器部署。
 - Mac、iPad 都通过同一个 GitHub Pages 地址访问。
-- 构建与发布由 GitHub Actions 完成，无需本地启动服务。
+- 本地构建后提交 `dist/` 目录，由 GitHub Pages 从 `main/dist` 发布。
 
 ## 技术栈
 
@@ -45,31 +45,40 @@ make help
 - `make dev`：启动本地开发服务器
 - `make test`：执行构建测试（检查是否可正常打包）
 - `make build`：生成生产构建
-- `make pages-build REPO=word-power`：按 GitHub Pages 路径构建
+- `make pages-build`：构建并同步 GitHub Pages 发布目录（`main/dist`）
 - `make preview`：本地预览构建结果（端口 `4173`）
 - `make clean`：清理构建产物
 - `make clean-all`：清理构建产物和依赖
 
 ## GitHub Pages 部署（唯一方案）
 
-### 1) 已内置自动部署工作流
+### 1) 发布方式
 
-仓库已包含：
-- `.github/workflows/deploy-pages.yml`
+仓库采用 `Deploy from a branch`：
+- Source: `Deploy from a branch`
+- Branch: `main`
+- Folder: `/dist`
+
+不再使用 `.github/workflows/deploy-pages.yml` 的 Actions 发布流程。
+
+### 2) 生成发布目录
+
+在仓库根目录执行：
+
+```bash
+make pages-build
+```
 
 行为：
-- 每次推送到 `main` 分支会自动构建 `frontend` 并部署到 GitHub Pages。
-- 支持手动触发（`workflow_dispatch`）。
-- `VITE_BASE` 在 CI 中按仓库名自动计算，无需手动改 `vite.config.js`。
+- 在 `frontend` 执行 `VITE_BASE=./ npm run build`
+- 清理旧的 `dist/`
+- 将 `frontend/dist/*` 同步到 `dist/`
 
-### 2) 开启 Pages
+### 3) 提交并发布
 
-在 GitHub 仓库页面：
-1. 进入 `Settings -> Pages`。
-2. `Source` 选择 `GitHub Actions`。
-3. 推送到 `main` 分支后自动发布。
+构建完成后提交并推送到 `main`，Pages 会自动从 `main/dist` 发布。
 
-### 3) 访问地址
+### 4) 访问地址
 
 发布成功后访问：
 - `https://<你的GitHub用户名>.github.io/<你的仓库名>/`
@@ -78,9 +87,9 @@ make help
 
 ## 使用流程
 
-1. 首次打开页面先上传：
-   - 词表文件（`word_labels.csv`）
-   - 学习数据文件（JSON 或 `mastered_words.csv`）
+1. 首次打开页面：
+   - 词表会优先自动读取同目录 `word_labels.csv`（失败时再手动上传）
+   - 学习数据文件（JSON 或 `mastered_words.csv`）需手动导入
 2. 系统会显示当前“词表版本”和“学习数据版本”（使用文件名作为版本标识）。
 3. 首页输入 YouTube 链接并选择本地字幕文件（`.srt/.vtt/.json`）。
 4. 点击“开始解析”，解析成功后点击“开始学习”。
@@ -98,9 +107,9 @@ make help
 
 ## 词表（word_labels.csv）
 
-- 页面启动时需先上传词表文件。
-- 上传后会缓存到浏览器本地，并显示对应文件名版本。
-- 后续也可在页面中重新上传新词表进行替换。
+- 页面启动时会优先自动读取同目录下的 `word_labels.csv`。
+- 自动读取成功后会缓存到浏览器本地，并显示版本为 `word_labels.csv`。
+- 如果自动读取失败，仍可在页面中手动上传词表文件。
 
 ## YouTube 字幕下载脚本（可选）
 
