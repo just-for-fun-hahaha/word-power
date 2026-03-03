@@ -815,6 +815,8 @@ const SINGLE_LINE_EARLY_PAUSE_SEC = 0.12;
 const SINGLE_LINE_MIN_DURATION_SEC = 0.12;
 const SINGLE_LINE_NEXT_GUARD_SEC = 0.01;
 const DEFAULT_SUBTITLE_ACCEPT = ".srt,.vtt,.json";
+const ENABLE_YOUTUBE_OEMBED_TITLE_FETCH = false;
+const YOUTUBE_PLAYER_HOST = "https://www.youtube-nocookie.com";
 
 function isIOSLikeDevice() {
   if (typeof navigator === "undefined") return false;
@@ -1195,11 +1197,11 @@ const canCopyAbRangeText = computed(() => {
 });
 
 const canControlPlayback = computed(() => {
-  return playerTranscriptLines.value.length > 0;
+  return playerTranscriptLines.value.length > 0 && !playerTranscriptLoading.value;
 });
 
 const canJumpSubtitle = computed(() => {
-  return playerTranscriptLines.value.length > 0;
+  return playerTranscriptLines.value.length > 0 && !playerTranscriptLoading.value;
 });
 
 const canAnalyzeCurrentPlayerSubtitle = computed(() => {
@@ -2876,13 +2878,15 @@ async function parseHomeVideo() {
     const lines = await parseSubtitleFile(homeSubtitleFile.value);
     const fallbackTitle = `YouTube 视频 (${videoId})`;
     let resolvedTitle = fallbackTitle;
-    try {
-      const fetchedTitle = await fetchYoutubeVideoTitle(url);
-      if (fetchedTitle) {
-        resolvedTitle = fetchedTitle;
+    if (ENABLE_YOUTUBE_OEMBED_TITLE_FETCH) {
+      try {
+        const fetchedTitle = await fetchYoutubeVideoTitle(url);
+        if (fetchedTitle) {
+          resolvedTitle = fetchedTitle;
+        }
+      } catch (titleErr) {
+        console.warn("读取YouTube标题失败，使用默认标题:", titleErr);
       }
-    } catch (titleErr) {
-      console.warn("读取YouTube标题失败，使用默认标题:", titleErr);
     }
 
     homeParsedUrl.value = url;
@@ -3309,6 +3313,14 @@ async function ensurePlayerReady() {
 }
 
 async function seekAndPlay(seconds) {
+  const start = Number(seconds || 0);
+  if (hasPlayerApiMethods() && englishPlayerInstance) {
+    englishPlayerInstance.seekTo(start, true);
+    englishPlayerInstance.playVideo();
+    playerCurrentTime.value = start;
+    return true;
+  }
+
   const ready = await ensurePlayerReady();
   if (!ready || !englishPlayerInstance) {
     message.warning(
@@ -3319,11 +3331,8 @@ async function seekAndPlay(seconds) {
     return false;
   }
 
-  const start = Number(seconds || 0);
   englishPlayerInstance.seekTo(start, true);
-  if (typeof englishPlayerInstance.playVideo === "function") {
-    englishPlayerInstance.playVideo();
-  }
+  englishPlayerInstance.playVideo();
   playerCurrentTime.value = start;
   return true;
 }
@@ -3367,6 +3376,13 @@ async function playSingleLine(line, index = -1) {
 }
 
 async function playSequentialFromCurrentPosition() {
+  if (hasPlayerApiMethods() && englishPlayerInstance) {
+    clearPinnedSubtitleIndex();
+    playerPlaybackTarget.value = null;
+    englishPlayerInstance.playVideo();
+    return;
+  }
+
   const ready = await ensurePlayerReady();
   if (!ready || !englishPlayerInstance || typeof englishPlayerInstance.playVideo !== "function") {
     message.warning(
@@ -3537,6 +3553,21 @@ async function playNextSubtitle() {
 }
 
 async function togglePlayerPlayPause() {
+  if (hasPlayerApiMethods() && englishPlayerInstance) {
+    if (playerIsPlaying.value) {
+      if (typeof englishPlayerInstance.pauseVideo === "function") {
+        englishPlayerInstance.pauseVideo();
+      }
+      playerPlaybackTarget.value = null;
+      return;
+    }
+
+    clearPinnedSubtitleIndex();
+    playerPlaybackTarget.value = null;
+    englishPlayerInstance.playVideo();
+    return;
+  }
+
   const ready = await ensurePlayerReady();
   if (!ready || !englishPlayerInstance) {
     message.warning(
@@ -3771,10 +3802,13 @@ async function mountEnglishPlayer(videoId) {
       videoId,
       width: "100%",
       height: "100%",
+      host: YOUTUBE_PLAYER_HOST,
       playerVars: {
         rel: 0,
         modestbranding: 1,
         playsinline: 1,
+        enablejsapi: 1,
+        origin: window.location.origin,
       },
       events: {
         onReady: () => {
@@ -3792,6 +3826,9 @@ async function mountEnglishPlayer(videoId) {
           const code = event?.data;
           playerInitError.value = `YouTube 播放器错误码 ${code}`;
           console.warn("YouTube Player onError:", code);
+        },
+        onAutoplayBlocked: () => {
+          playerInitError.value = "浏览器拦截了自动播放，请先点一次视频画面";
         },
       },
     });
@@ -3830,7 +3867,7 @@ async function parseAndLoadPlayerVideo(url, options = {}) {
     const videoId = extractYoutubeVideoId(normalizedUrl);
     const fallbackTitle = String(options.title || "").trim() || `YouTube 视频 (${videoId})`;
     let resolvedTitle = fallbackTitle;
-    if (isGenericYoutubeTitle(resolvedTitle)) {
+    if (ENABLE_YOUTUBE_OEMBED_TITLE_FETCH && isGenericYoutubeTitle(resolvedTitle)) {
       try {
         const fetchedTitle = await fetchYoutubeVideoTitle(normalizedUrl);
         if (fetchedTitle) {
