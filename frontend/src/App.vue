@@ -500,7 +500,7 @@
           </div>
 
           <!-- ========== 英语播放器页面 ========== -->
-          <div v-if="currentPage === 'player'" class="player-page">
+          <div v-show="currentPage === 'player'" class="player-page">
             <a-alert
               v-if="playerError"
               :message="playerError"
@@ -1321,7 +1321,11 @@ watch(playerAbSelectionMode, () => {
 
 watch(currentPage, async (newPage, oldPage) => {
   if (oldPage === "player" && newPage !== "player") {
-    destroyEnglishPlayer();
+    playerPlaybackTarget.value = null;
+    if (englishPlayerInstance && typeof englishPlayerInstance.pauseVideo === "function") {
+      englishPlayerInstance.pauseVideo();
+    }
+    stopEnglishPlayerTimer();
   }
 
   if (
@@ -1330,7 +1334,11 @@ watch(currentPage, async (newPage, oldPage) => {
     playerTranscriptLines.value.length > 0
   ) {
     try {
-      await mountEnglishPlayer(playerVideoId.value);
+      if (hasPlayerApiMethods()) {
+        startEnglishPlayerTimer();
+      } else {
+        await mountEnglishPlayer(playerVideoId.value);
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       playerError.value = `播放器初始化失败: ${errorMsg}`;
