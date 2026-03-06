@@ -49,17 +49,34 @@
               class="home-player-entry"
               :class="{ 'no-history': playerHistoryVideos.length === 0 }"
             >
+              <div class="home-entry-title">
+                <h2>Import Local Material</h2>
+                <p>
+                  Upload a local video and English subtitles to cache them in this browser,
+                  or upload subtitles only to judge difficulty before importing the video.
+                </p>
+              </div>
               <div class="home-entry-row">
                 <a-input
                   class="home-link-input"
-                  v-model:value="homeYoutubeUrl"
-                  placeholder="Paste a YouTube URL"
+                  v-model:value="homeMaterialTitle"
+                  placeholder="Optional material title"
                   :disabled="homeParseLoading"
-                  allow-clear
-                  @pressEnter="parseHomeVideo"
                 />
                 <a-button
                   :disabled="homeParseLoading"
+                  @click="triggerHomeVideoUpload"
+                >
+                  Upload Video
+                </a-button>
+                <span
+                  class="home-upload-status"
+                  :class="{ ready: !!homeVideoFileName }"
+                >
+                  {{ homeVideoFileName || "No video uploaded" }}
+                </span>
+                <a-button
+                  :disabled="homeParseLoading || homeAnalyzeLoading"
                   @click="triggerHomeSubtitleUpload"
                 >
                   Upload Subtitles
@@ -70,20 +87,20 @@
                 >
                   {{ homeSubtitleFileName || "No subtitles uploaded" }}
                 </span>
-                <a-button
-                  type="primary"
-                  :loading="homeParseLoading"
-                  :disabled="!homeYoutubeUrl.trim() || !homeSubtitleFile"
-                  @click="parseHomeVideo"
-                >
-                  Parse
-                </a-button>
+                <input
+                  ref="homeVideoInputRef"
+                  type="file"
+                  accept="video/*"
+                  style="display: none"
+                  :disabled="homeParseLoading"
+                  @change="handleHomeVideoFileChange"
+                />
                 <input
                   ref="homeSubtitleInputRef"
                   type="file"
                   :accept="homeSubtitleAccept"
                   style="display: none"
-                  :disabled="homeParseLoading"
+                  :disabled="homeParseLoading || homeAnalyzeLoading"
                   @change="handleHomeSubtitleFileChange"
                 />
               </div>
@@ -96,47 +113,36 @@
                 @close="homeError = ''"
                 style="margin-top: 12px"
               />
-              <div v-if="homeSubtitleOptions.length > 0" class="home-entry-next">
-                <a-select
-                  v-model:value="homeSelectedSubtitle"
-                  placeholder="Choose English subtitles"
-                  style="width: min(280px, 100%)"
-                >
-                  <a-select-option
-                    v-for="subtitle in homeSubtitleOptions"
-                    :key="subtitle.language_code"
-                    :value="subtitle.language_code"
-                  >
-                    {{ subtitle.language }} ({{ subtitle.language_code }})
-                  </a-select-option>
-                </a-select>
+              <div class="home-entry-next">
                 <a-button
                   type="primary"
-                  :disabled="!homeCanStartLearning"
-                  @click="startLearningFromHome"
+                  :loading="homeParseLoading"
+                  :disabled="!homeCanImportMaterial"
+                  @click="importHomeMaterial"
                 >
-                  Start Learning
+                  Import & Learn
                 </a-button>
                 <a-button
-                  :disabled="!homeCanStartLearning"
-                  @click="goToSubtitleAnalysisFromHome"
+                  :loading="homeAnalyzeLoading"
+                  :disabled="!homeCanAnalyzeSubtitleOnly"
+                  @click="analyzeHomeSubtitleOnly"
                 >
-                  Analyze Vocabulary
+                  Analyze Subtitle Only
                 </a-button>
               </div>
-              <div v-if="homeParsedTitle" class="home-entry-video-title">
-                Video: {{ homeParsedTitle }}
+              <div v-if="homeResolvedTitle" class="home-entry-video-title">
+                Ready title: {{ homeResolvedTitle }}
               </div>
             </div>
 
             <div v-if="playerHistoryVideos.length > 0" class="home-history-card">
               <div class="home-history-header">
                 <div class="section-header">
-                  <h2>Added Videos</h2>
+                  <h2>Local Library</h2>
                   <p v-if="homeHistorySelectionMode">
                     {{ homeSelectedHistoryIds.length }} selected
                   </p>
-                  <p v-else>Click a card to resume learning</p>
+                  <p v-else>Click a card to reopen a cached material</p>
                 </div>
                 <div class="home-history-toolbar">
                   <a-button size="small" @click="toggleHomeHistorySelectionMode">
@@ -172,22 +178,20 @@
                   </div>
                   <div
                     class="home-history-thumb"
-                    :class="{ placeholder: !getHistoryThumbnailUrl(item) }"
+                    :class="{ placeholder: true }"
                   >
-                    <img
-                      v-if="getHistoryThumbnailUrl(item)"
-                      :src="getHistoryThumbnailUrl(item)"
-                      :alt="getHistoryDisplayTitle(item)"
-                      loading="lazy"
-                    />
-                    <span v-else>No thumbnail</span>
+                    <span>{{ item.hasVideo ? "Local video cached" : "Subtitle only" }}</span>
                   </div>
                   <div class="home-history-title">
                     {{ getHistoryDisplayTitle(item) }}
                   </div>
-                  <div class="home-history-url">{{ item.url }}</div>
+                  <div class="home-history-url">
+                    {{ item.videoFileName || item.subtitleFileName || item.url }}
+                  </div>
                   <div class="home-history-meta">
                     {{ (item.subtitleLines || []).length }} subtitle lines
+                    ·
+                    {{ item.videoFileName ? "video cached" : "subtitle only" }}
                   </div>
                 </div>
               </div>
@@ -659,7 +663,16 @@
             <div class="player-content">
               <div class="player-video-panel">
                 <div class="player-video-wrapper">
-                  <div id="english-learning-player"></div>
+                  <video
+                    v-if="playerHasVideo"
+                    ref="playerVideoRef"
+                    class="player-local-video"
+                    preload="metadata"
+                    playsinline
+                  ></video>
+                  <div v-else class="player-video-empty">
+                    No cached local video for this material.
+                  </div>
                 </div>
                 <div class="player-video-controls">
                   <div class="player-video-main-controls">
@@ -985,6 +998,10 @@ const MASTERED_WORDS_STORAGE_KEY = "word_power_mastered_words_v1";
 const WORD_LABELS_STORAGE_KEY = "word_power_word_labels_map_v1";
 const WORD_LABELS_VERSION_STORAGE_KEY = "word_power_word_labels_version_v1";
 const LEARNING_DATA_VERSION_STORAGE_KEY = "word_power_learning_data_version_v1";
+const LOCAL_VIDEO_DB_NAME = "word_power_local_media_v1";
+const LOCAL_VIDEO_DB_VERSION = 1;
+const LOCAL_VIDEO_STORE_NAME = "videos";
+const LOCAL_MATERIAL_URL_PREFIX = "local-material:";
 const FIXED_WORD_LABELS_FILE_NAME = "word_labels.csv";
 const FIXED_MASTERED_WORDS_FILE_NAME = "mastered_words.csv";
 const BASE_WORD_LABELS = ["3000", "5000", "10000"];
@@ -1002,7 +1019,6 @@ const SINGLE_LINE_MIN_DURATION_SEC = 0.12;
 const SINGLE_LINE_NEXT_GUARD_SEC = 0.01;
 const DEFAULT_SUBTITLE_ACCEPT = ".srt,.vtt,.json";
 const ENABLE_YOUTUBE_OEMBED_TITLE_FETCH = false;
-const YOUTUBE_PLAYER_HOST = "https://www.youtube-nocookie.com";
 const PLAYER_PLAYBACK_RATES = [0.5, 1, 1.25, 1.5, 2];
 
 function isIOSLikeDevice() {
@@ -1115,8 +1131,13 @@ const wordLabelsInputRef = ref(null);
 
 // ===== 首页状态 =====
 const homeYoutubeUrl = ref("");
+const homeMaterialTitle = ref("");
 const homeParseLoading = ref(false);
+const homeAnalyzeLoading = ref(false);
 const homeError = ref("");
+const homeVideoFile = ref(null);
+const homeVideoFileName = ref("");
+const homeVideoInputRef = ref(null);
 const homeParsedUrl = ref("");
 const homeParsedTitle = ref("");
 const homeParsedVideoId = ref("");
@@ -1129,14 +1150,22 @@ const homeParsedLines = ref([]);
 const homeHistorySelectionMode = ref(false);
 const homeSelectedHistoryIds = ref([]);
 
-const homeCanStartLearning = computed(() => {
-  return (
-    !!homeYoutubeUrl.value.trim() &&
-    !!homeParsedVideoId.value &&
-    homeYoutubeUrl.value.trim() === homeParsedUrl.value &&
-    !!homeSelectedSubtitle.value &&
-    homeParsedLines.value.length > 0
-  );
+const homeResolvedTitle = computed(() => {
+  const manualTitle = normalizeSubtitleText(homeMaterialTitle.value || "");
+  if (manualTitle) return manualTitle;
+  const videoName = stripFileExtension(homeVideoFileName.value);
+  if (videoName) return videoName;
+  const subtitleName = stripFileExtension(homeSubtitleFileName.value);
+  if (subtitleName) return subtitleName;
+  return "";
+});
+
+const homeCanImportMaterial = computed(() => {
+  return !!homeVideoFile.value && !!homeSubtitleFile.value;
+});
+
+const homeCanAnalyzeSubtitleOnly = computed(() => {
+  return !!homeSubtitleFile.value;
 });
 
 const canOpenPlayerPage = computed(() => !!playerVideoId.value);
@@ -1198,12 +1227,7 @@ const tedPagination = ref({
 });
 
 const tedCanAnalyze = computed(() => {
-  return (
-    !!youtubeUrl.value.trim() &&
-    youtubeUrl.value.trim() === parsedYoutubeUrl.value &&
-    !!selectedYoutubeSubtitle.value &&
-    tedSubtitleLines.value.length > 0
-  );
+  return tedSubtitleLines.value.length > 0;
 });
 
 watch(youtubeUrl, (newUrl) => {
@@ -1359,6 +1383,9 @@ let youtubeIframeApiPromise = null;
 let englishPlayerInstance = null;
 let englishPlayerTimer = null;
 let playerMountPromise = null;
+let playerVideoObjectUrl = "";
+let playerVideoEventCleanup = null;
+let playerCurrentVideoBlob = null;
 
 const playerYoutubeUrl = ref("");
 const playerParsedYoutubeUrl = ref("");
@@ -1375,9 +1402,11 @@ const playerTranscriptLoading = ref(false);
 const playerError = ref("");
 const playerInitError = ref("");
 const playerIframeReady = ref(false);
+const playerHasVideo = ref(false);
 const playerTranscriptLines = ref([]);
 const playerCurrentTime = ref(0);
 const playerSubtitleListRef = ref(null);
+const playerVideoRef = ref(null);
 const playerAbStartIndex = ref(-1);
 const playerAbEndIndex = ref(-1);
 const playerAbSelectionMode = ref(false);
@@ -1391,6 +1420,7 @@ const playerPinnedSubtitleIndex = ref(-1);
 const playerCanLoadTranscript = computed(() => {
   return (
     !!playerVideoId.value &&
+    playerHasVideo.value &&
     !!playerSelectedSubtitle.value &&
     playerYoutubeUrl.value.trim() === playerParsedYoutubeUrl.value
   );
@@ -1410,11 +1440,11 @@ const canCopyAbRangeText = computed(() => {
 });
 
 const canControlPlayback = computed(() => {
-  return playerTranscriptLines.value.length > 0 && !playerTranscriptLoading.value;
+  return playerHasVideo.value && playerTranscriptLines.value.length > 0 && !playerTranscriptLoading.value;
 });
 
 const canJumpSubtitle = computed(() => {
-  return playerTranscriptLines.value.length > 0 && !playerTranscriptLoading.value;
+  return playerHasVideo.value && playerTranscriptLines.value.length > 0 && !playerTranscriptLoading.value;
 });
 
 const canAnalyzeCurrentPlayerSubtitle = computed(() => {
@@ -1431,8 +1461,7 @@ const playerTranscriptHash = computed(() => {
 
 const playerUnknownWordsFromTedAnalysis = computed(() => {
   if (
-    lastTedAnalysisMeta.value.source !== "youtube" ||
-    lastTedAnalysisMeta.value.youtube_url !== playerParsedYoutubeUrl.value ||
+    lastTedAnalysisMeta.value.source !== "local" ||
     lastTedAnalysisMeta.value.subtitle_hash !== playerTranscriptHash.value
   ) {
     return new Set();
@@ -1511,6 +1540,8 @@ watch(playerYoutubeUrl, (newUrl) => {
   playerSelectedSubtitle.value = "";
   playerSubtitleFileName.value = "";
   playerLocalSubtitleLines.value = [];
+  playerHasVideo.value = false;
+  playerCurrentVideoBlob = null;
   playerTranscriptLines.value = [];
   playerCurrentTime.value = 0;
   clearPinnedSubtitleIndex();
@@ -1744,27 +1775,24 @@ async function fetchYoutubeVideoTitle(youtubeUrl) {
 }
 
 function getHistoryVideoId(item) {
-  const directId = String(item?.videoId || "").trim();
-  if (directId) return directId;
-  return extractYoutubeVideoIdSafe(item?.url || "");
+  return parseLocalMaterialId(item?.url || "") || String(item?.videoId || "").trim();
 }
 
 function getHistoryThumbnailUrl(item) {
-  return getYoutubeThumbnailUrl(getHistoryVideoId(item));
+  return "";
 }
 
 function getHistoryDisplayTitle(item) {
   const rawTitle = String(item?.title || "").trim();
-  if (rawTitle && !isGenericYoutubeTitle(rawTitle)) {
+  if (rawTitle) {
     return rawTitle;
   }
 
-  const videoId = getHistoryVideoId(item);
-  if (videoId) {
-    return `YouTube Video ${videoId}`;
-  }
-
-  return rawTitle || String(item?.url || "").trim() || "YouTube Video";
+  return (
+    stripFileExtension(item?.videoFileName || "") ||
+    stripFileExtension(item?.subtitleFileName || "") ||
+    "Local Material"
+  );
 }
 
 function stripHtmlTags(value) {
@@ -1949,6 +1977,126 @@ async function parseSubtitleFile(file) {
   }
 
   return lines;
+}
+
+function stripFileExtension(fileName) {
+  return String(fileName || "").replace(/\.[^.]+$/, "").trim();
+}
+
+function buildLocalMaterialUrl(materialId) {
+  const normalizedId = String(materialId || "").trim();
+  return normalizedId ? `${LOCAL_MATERIAL_URL_PREFIX}${normalizedId}` : "";
+}
+
+function parseLocalMaterialId(materialUrl) {
+  const value = String(materialUrl || "").trim();
+  if (!value.startsWith(LOCAL_MATERIAL_URL_PREFIX)) {
+    return "";
+  }
+  return value.slice(LOCAL_MATERIAL_URL_PREFIX.length).trim();
+}
+
+function deriveLocalMaterialTitle({ title, videoFileName, subtitleFileName }) {
+  const manualTitle = normalizeSubtitleText(title || "");
+  if (manualTitle) return manualTitle;
+
+  const videoTitle = stripFileExtension(videoFileName);
+  if (videoTitle) return videoTitle;
+
+  const subtitleTitle = stripFileExtension(subtitleFileName);
+  if (subtitleTitle) return subtitleTitle;
+
+  return "Local Material";
+}
+
+function openLocalVideoDb() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(new Error("IndexedDB is not available in this browser."));
+      return;
+    }
+
+    const request = indexedDB.open(LOCAL_VIDEO_DB_NAME, LOCAL_VIDEO_DB_VERSION);
+    request.onerror = () => {
+      reject(request.error || new Error("Failed to open the local media cache."));
+    };
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(LOCAL_VIDEO_STORE_NAME)) {
+        db.createObjectStore(LOCAL_VIDEO_STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+  });
+}
+
+async function saveLocalVideoBlob(materialId, blob) {
+  if (!materialId || !(blob instanceof Blob)) {
+    throw new Error("Missing local video data.");
+  }
+
+  const db = await openLocalVideoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_VIDEO_STORE_NAME, "readwrite");
+    const store = tx.objectStore(LOCAL_VIDEO_STORE_NAME);
+    const request = store.put({
+      id: materialId,
+      blob,
+      updatedAt: Date.now(),
+    });
+    request.onerror = () => {
+      reject(request.error || new Error("Failed to cache the local video."));
+    };
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      reject(tx.error || new Error("Failed to cache the local video."));
+    };
+  });
+}
+
+async function loadLocalVideoBlob(materialId) {
+  if (!materialId) return null;
+
+  const db = await openLocalVideoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_VIDEO_STORE_NAME, "readonly");
+    const store = tx.objectStore(LOCAL_VIDEO_STORE_NAME);
+    const request = store.get(materialId);
+    request.onerror = () => {
+      reject(request.error || new Error("Failed to load the cached video."));
+    };
+    request.onsuccess = () => {
+      db.close();
+      const result = request.result;
+      resolve(result?.blob instanceof Blob ? result.blob : null);
+    };
+  });
+}
+
+async function deleteLocalVideoBlob(materialId) {
+  if (!materialId) return;
+
+  const db = await openLocalVideoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_VIDEO_STORE_NAME, "readwrite");
+    const store = tx.objectStore(LOCAL_VIDEO_STORE_NAME);
+    const request = store.delete(materialId);
+    request.onerror = () => {
+      reject(request.error || new Error("Failed to delete the cached video."));
+    };
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      reject(tx.error || new Error("Failed to delete the cached video."));
+    };
+  });
 }
 
 function computeTranscriptHash(lines) {
@@ -3162,7 +3310,13 @@ async function importLearningDataFromFile(file) {
 
     if (Array.isArray(parsedLearningData.player_history)) {
       playerHistoryVideos.value = parsedLearningData.player_history
-        .filter((item) => item && item.id && item.url)
+        .filter(
+          (item) =>
+            item &&
+            item.id &&
+            typeof item.url === "string" &&
+            item.url.startsWith(LOCAL_MATERIAL_URL_PREFIX)
+        )
         .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0))
         .slice(0, 30);
       savePlayerHistory();
@@ -3475,6 +3629,18 @@ function markTedCurrentPageMastered() {
   });
 }
 
+function handleHomeVideoFileChange(event) {
+  const file = event?.target?.files?.[0] || null;
+  homeVideoFile.value = file;
+  homeVideoFileName.value = file?.name || "";
+}
+
+function triggerHomeVideoUpload() {
+  if (!homeVideoInputRef.value) return;
+  homeVideoInputRef.value.value = "";
+  homeVideoInputRef.value.click();
+}
+
 function handleHomeSubtitleFileChange(event) {
   const file = event?.target?.files?.[0] || null;
   homeSubtitleFile.value = file;
@@ -3497,120 +3663,143 @@ function handleTedSubtitleFileChange(event) {
   parsedYoutubeUrl.value = "";
 }
 
-async function parseHomeVideo() {
-  const url = normalizeYoutubeUrl(homeYoutubeUrl.value);
-  if (!url) {
-    homeError.value = "Enter a YouTube URL.";
-    return;
-  }
-  if (!homeSubtitleFile.value) {
+async function analyzeHomeSubtitleOnly() {
+  if (!homeCanAnalyzeSubtitleOnly.value) {
     homeError.value = "Choose a local subtitle file first.";
     return;
   }
 
-  homeParseLoading.value = true;
+  homeAnalyzeLoading.value = true;
   homeError.value = "";
-  homeParsedUrl.value = "";
-  homeParsedTitle.value = "";
-  homeParsedVideoId.value = "";
-  homeSubtitleOptions.value = [];
-  homeSelectedSubtitle.value = "";
-  homeParsedLines.value = [];
 
   try {
-    const videoId = extractYoutubeVideoId(url);
     const lines = await parseSubtitleFile(homeSubtitleFile.value);
-    const fallbackTitle = `YouTube Video (${videoId})`;
-    let resolvedTitle = fallbackTitle;
-    if (ENABLE_YOUTUBE_OEMBED_TITLE_FETCH) {
-      try {
-        const fetchedTitle = await fetchYoutubeVideoTitle(url);
-        if (fetchedTitle) {
-          resolvedTitle = fetchedTitle;
-        }
-      } catch (titleErr) {
-        console.warn("Failed to fetch YouTube title. Using fallback title.", titleErr);
-      }
-    }
+    const title = deriveLocalMaterialTitle({
+      title: homeMaterialTitle.value,
+      videoFileName: homeVideoFileName.value,
+      subtitleFileName: homeSubtitleFileName.value,
+    });
+    const analysisKey = `local-analysis:${title}:${computeTranscriptHash(lines)}`;
 
-    homeParsedUrl.value = url;
-    homeParsedVideoId.value = videoId;
-    homeParsedTitle.value = resolvedTitle;
-    homeParsedLines.value = lines;
-
-    homeSubtitleOptions.value = [
+    youtubeUrl.value = analysisKey;
+    parsedYoutubeUrl.value = analysisKey;
+    youtubeVideoTitle.value = title;
+    youtubeSubtitles.value = [
       {
         language_code: "local",
         language: `Local subtitles · ${homeSubtitleFileName.value || "Untitled"}`,
       },
     ];
-    homeSelectedSubtitle.value = "local";
+    selectedYoutubeSubtitle.value = "local";
+    tedSubtitleLines.value = lines;
+    tedSubtitleFileName.value = homeSubtitleFileName.value;
 
-    upsertPlayerHistory({
-      url,
-      videoId,
-      title: resolvedTitle,
+    openTedPage();
+    await nextTick();
+    await analyzeTedFile();
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    homeError.value = `Subtitle analysis failed: ${errorMsg}`;
+  } finally {
+    homeAnalyzeLoading.value = false;
+  }
+}
+
+async function openLocalMaterialInPlayer(item, options = {}) {
+  if (!item?.url) return;
+
+  const materialId = parseLocalMaterialId(item.url) || String(item.videoId || "").trim();
+  if (!materialId) {
+    throw new Error("Invalid local material ID.");
+  }
+
+  const videoBlob =
+    options.videoBlob instanceof Blob ? options.videoBlob : await loadLocalVideoBlob(materialId);
+  if (!(videoBlob instanceof Blob)) {
+    throw new Error("The cached local video is missing. Re-import the material.");
+  }
+
+  playerParsedYoutubeUrl.value = item.url;
+  playerYoutubeUrl.value = item.url;
+  playerVideoId.value = materialId;
+  playerVideoTitle.value = getHistoryDisplayTitle(item);
+  playerSubtitleOptions.value = [
+    {
+      language_code: "local",
+      language: `Local subtitles · ${item.subtitleFileName || "Untitled"}`,
+    },
+  ];
+  playerSelectedSubtitle.value = "local";
+  playerSubtitleFileName.value = item.subtitleFileName || "";
+  playerLocalSubtitleLines.value = Array.isArray(item.subtitleLines)
+    ? item.subtitleLines.slice()
+    : [];
+  playerHasVideo.value = true;
+  playerCurrentVideoBlob = videoBlob;
+  currentPage.value = "player";
+  await loadPlayerTranscript();
+}
+
+async function importHomeMaterial() {
+  if (!homeCanImportMaterial.value) {
+    homeError.value = "Upload both a local video file and a subtitle file first.";
+    return;
+  }
+
+  homeParseLoading.value = true;
+  homeError.value = "";
+
+  try {
+    const lines = await parseSubtitleFile(homeSubtitleFile.value);
+    const materialId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const materialUrl = buildLocalMaterialUrl(materialId);
+    const title = deriveLocalMaterialTitle({
+      title: homeMaterialTitle.value,
+      videoFileName: homeVideoFileName.value,
+      subtitleFileName: homeSubtitleFileName.value,
+    });
+
+    await saveLocalVideoBlob(materialId, homeVideoFile.value);
+
+    const entry = upsertPlayerHistory({
+      url: materialUrl,
+      videoId: materialId,
+      title,
       subtitleCode: "local",
       subtitleFileName: homeSubtitleFileName.value,
       subtitleLines: lines,
+      videoFileName: homeVideoFileName.value,
+      hasVideo: true,
     });
 
-    message.success(`Parsed successfully: ${lines.length} subtitle lines.`);
+    homeParsedUrl.value = materialUrl;
+    homeParsedVideoId.value = materialId;
+    homeParsedTitle.value = title;
+    homeParsedLines.value = lines;
+
+    await openLocalMaterialInPlayer(entry, { videoBlob: homeVideoFile.value });
+    message.success(`Imported and cached: ${title}`);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    homeError.value = `Parse failed: ${errorMsg}`;
+    homeError.value = `Import failed: ${errorMsg}`;
   } finally {
     homeParseLoading.value = false;
   }
 }
 
-async function startLearningFromHome() {
-  if (!homeCanStartLearning.value) return;
-
-  if (
-    canReuseExistingPlayerSession({
-      youtubeUrl: homeParsedUrl.value,
-      videoId: homeParsedVideoId.value,
-      subtitleLines: homeParsedLines.value,
-    })
-  ) {
-    reopenExistingPlayerPage();
-    return;
-  }
-
-  playerParsedYoutubeUrl.value = homeParsedUrl.value;
-  playerYoutubeUrl.value = homeParsedUrl.value;
-  playerVideoId.value = homeParsedVideoId.value;
-  playerVideoTitle.value = homeParsedTitle.value;
-  playerSubtitleOptions.value = homeSubtitleOptions.value.slice();
-  playerSelectedSubtitle.value = homeSelectedSubtitle.value;
-  playerSubtitleFileName.value = homeSubtitleFileName.value;
-  playerLocalSubtitleLines.value = homeParsedLines.value.slice();
-  currentPage.value = "player";
-  await loadPlayerTranscript();
-}
-
 async function startLearningFromHistory(item) {
   if (!item || !item.url) return;
-
-  if (
-    canReuseExistingPlayerSession({
-      youtubeUrl: item.url,
-      videoId: item.videoId || "",
-      subtitleLines: Array.isArray(item.subtitleLines) ? item.subtitleLines : [],
-    })
-  ) {
-    homeYoutubeUrl.value = item.url;
-    reopenExistingPlayerPage();
+  if (!item.hasVideo) {
+    message.info("This entry only has subtitles. Import a video file to study it in Player.");
     return;
   }
 
-  homeYoutubeUrl.value = item.url;
-  await parseAndLoadPlayerVideo(item.url, {
-    title: item.title || "",
-    subtitleLines: Array.isArray(item.subtitleLines) ? item.subtitleLines : [],
-    subtitleFileName: item.subtitleFileName || "",
-  });
+  try {
+    await openLocalMaterialInPlayer(item);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    message.error(errorMsg);
+  }
 }
 
 function isHomeHistorySelected(historyId) {
@@ -3649,6 +3838,7 @@ async function handleHomeHistoryCardClick(item) {
 
 function removeHistoryVideo(historyId) {
   if (!historyId) return;
+  const removedItem = playerHistoryVideos.value.find((item) => item.id === historyId);
   playerHistoryVideos.value = playerHistoryVideos.value.filter(
     (item) => item.id !== historyId
   );
@@ -3659,36 +3849,26 @@ function removeHistoryVideo(historyId) {
     homeHistorySelectionMode.value = false;
   }
   savePlayerHistory();
+  void deleteLocalVideoBlob(parseLocalMaterialId(removedItem?.url || ""));
 }
 
-function removeSelectedHistoryVideos() {
+async function removeSelectedHistoryVideos() {
   if (!homeSelectedHistoryIds.value.length) return;
 
   const selectedSet = new Set(homeSelectedHistoryIds.value);
+  const removedItems = playerHistoryVideos.value.filter((item) => selectedSet.has(item.id));
   playerHistoryVideos.value = playerHistoryVideos.value.filter(
     (item) => !selectedSet.has(item.id)
   );
+  await Promise.all(
+    removedItems.map((item) => deleteLocalVideoBlob(parseLocalMaterialId(item.url || "")))
+  );
   savePlayerHistory();
-  message.success(`Deleted ${selectedSet.size} videos.`);
+  message.success(`Deleted ${selectedSet.size} materials.`);
   homeSelectedHistoryIds.value = [];
   if (!playerHistoryVideos.value.length) {
     homeHistorySelectionMode.value = false;
   }
-}
-
-async function goToSubtitleAnalysisFromHome() {
-  if (!homeCanStartLearning.value) return;
-
-  youtubeUrl.value = homeParsedUrl.value;
-  parsedYoutubeUrl.value = homeParsedUrl.value;
-  youtubeVideoTitle.value = homeParsedTitle.value;
-  youtubeSubtitles.value = homeSubtitleOptions.value.slice();
-  selectedYoutubeSubtitle.value = homeSelectedSubtitle.value;
-  tedSubtitleLines.value = homeParsedLines.value.slice();
-  tedSubtitleFileName.value = homeSubtitleFileName.value;
-  openTedPage();
-  await nextTick();
-  await analyzeTedFile();
 }
 
 function loadPlayerHistory() {
@@ -3710,7 +3890,13 @@ function loadPlayerHistory() {
     }
 
     playerHistoryVideos.value = parsed
-      .filter((item) => item && item.id && item.url)
+      .filter(
+        (item) =>
+          item &&
+          item.id &&
+          typeof item.url === "string" &&
+          item.url.startsWith(LOCAL_MATERIAL_URL_PREFIX)
+      )
       .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
     homeSelectedHistoryIds.value = [];
     homeHistorySelectionMode.value = false;
@@ -3755,6 +3941,8 @@ function upsertPlayerHistory({
   subtitleCode,
   subtitleFileName,
   subtitleLines,
+  videoFileName,
+  hasVideo,
 }) {
   const normalizedUrl = normalizeYoutubeUrl(url);
   if (!normalizedUrl) return null;
@@ -3772,6 +3960,8 @@ function upsertPlayerHistory({
     title: title || existing?.title || normalizedUrl,
     subtitleCode: subtitleCode || existing?.subtitleCode || "local",
     subtitleFileName: subtitleFileName || existing?.subtitleFileName || "",
+    videoFileName: videoFileName || existing?.videoFileName || "",
+    hasVideo: typeof hasVideo === "boolean" ? hasVideo : existing?.hasVideo ?? false,
     subtitleLines:
       Array.isArray(subtitleLines) && subtitleLines.length
         ? subtitleLines
@@ -3848,7 +4038,7 @@ async function analyzeTedFile() {
     const analyzed = analyzeSubtitleLines(tedSubtitleLines.value);
     tedResults.value = analyzed;
     lastTedAnalysisMeta.value = {
-      source: "youtube",
+      source: "local",
       youtube_url: youtubeUrl.value.trim(),
       language_code: selectedYoutubeSubtitle.value,
       subtitle_hash: computeTranscriptHash(tedSubtitleLines.value),
@@ -4002,12 +4192,13 @@ function hasPlayerApiMethods() {
 async function waitForPlayerReady(timeoutMs = 12000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
-    if (playerIframeReady.value || hasPlayerApiMethods()) {
+    const videoEl = playerVideoRef.value;
+    if (
+      playerIframeReady.value ||
+      (videoEl instanceof HTMLVideoElement && videoEl.readyState >= 1 && !!videoEl.duration)
+    ) {
       playerIframeReady.value = true;
       return true;
-    }
-    if (playerInitError.value.startsWith("YouTube player error code")) {
-      return false;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 100));
   }
@@ -4021,7 +4212,12 @@ async function ensurePlayerReady() {
   }
 
   if (!playerVideoId.value) {
-    playerInitError.value = "Missing video ID.";
+    playerInitError.value = "Missing local material ID.";
+    return false;
+  }
+
+  if (!playerHasVideo.value) {
+    playerInitError.value = "No cached local video is available for this material.";
     return false;
   }
 
@@ -4454,95 +4650,7 @@ async function handleSubtitleTimeClick(line, index) {
 }
 
 async function loadYoutubeIframeApi() {
-  if (window.YT && window.YT.Player) {
-    return window.YT;
-  }
-
-  if (youtubeIframeApiPromise) {
-    return youtubeIframeApiPromise;
-  }
-
-  youtubeIframeApiPromise = new Promise((resolve, reject) => {
-    const scriptId = "youtube-iframe-api-script";
-    const scriptSrc = "https://www.youtube.com/iframe_api";
-    let resolved = false;
-    let pollTimer = null;
-    let timeoutId = null;
-    const previousReady = window.onYouTubeIframeAPIReady;
-
-    const cleanup = () => {
-      if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-      if (window.onYouTubeIframeAPIReady === readyHandler) {
-        window.onYouTubeIframeAPIReady = previousReady || null;
-      }
-    };
-
-    const resolveIfReady = () => {
-      if (resolved) return true;
-      if (window.YT && window.YT.Player) {
-        resolved = true;
-        cleanup();
-        resolve(window.YT);
-        return true;
-      }
-      return false;
-    };
-
-    const readyHandler = () => {
-      if (typeof previousReady === "function") {
-        try {
-          previousReady();
-        } catch (err) {
-          console.warn("onYouTubeIframeAPIReady callback failed:", err);
-        }
-      }
-      resolveIfReady();
-    };
-
-    window.onYouTubeIframeAPIReady = readyHandler;
-
-    const existingScript = document.getElementById(scriptId);
-    if (!existingScript) {
-      const script = document.createElement("script");
-      script.id = scriptId;
-      script.src = scriptSrc;
-      script.async = true;
-      script.onerror = () => {
-        cleanup();
-        reject(new Error("Unable to load the YouTube player script."));
-      };
-      document.body.appendChild(script);
-    }
-
-    if (resolveIfReady()) {
-      return;
-    }
-
-    pollTimer = setInterval(() => {
-      resolveIfReady();
-    }, 200);
-
-    timeoutId = setTimeout(() => {
-      cleanup();
-      const staleScript = document.getElementById(scriptId);
-      if (staleScript) {
-        staleScript.remove();
-      }
-      reject(new Error("Loading the YouTube player timed out. Try again later."));
-    }, 15000);
-  }).catch((err) => {
-    youtubeIframeApiPromise = null;
-    throw err;
-  });
-
-  return youtubeIframeApiPromise;
+  return true;
 }
 
 function startEnglishPlayerTimer() {
@@ -4567,8 +4675,8 @@ function stopEnglishPlayerTimer() {
 
 async function waitForPlayerRoot(maxAttempts = 20, intervalMs = 100) {
   for (let i = 0; i < maxAttempts; i++) {
-    const playerRoot = document.getElementById("english-learning-player");
-    if (playerRoot) {
+    const playerRoot = playerVideoRef.value;
+    if (playerRoot instanceof HTMLVideoElement) {
       return playerRoot;
     }
     await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
@@ -4576,17 +4684,104 @@ async function waitForPlayerRoot(maxAttempts = 20, intervalMs = 100) {
   return null;
 }
 
+function revokePlayerVideoUrl() {
+  if (!playerVideoObjectUrl) {
+    return;
+  }
+  URL.revokeObjectURL(playerVideoObjectUrl);
+  playerVideoObjectUrl = "";
+}
+
+function detachPlayerVideoEvents() {
+  if (typeof playerVideoEventCleanup === "function") {
+    playerVideoEventCleanup();
+  }
+  playerVideoEventCleanup = null;
+}
+
+function attachPlayerVideoEvents(videoEl) {
+  detachPlayerVideoEvents();
+
+  const handleLoadedMetadata = () => {
+    playerIframeReady.value = true;
+    playerCurrentTime.value = Number(videoEl.currentTime || 0);
+    playerIsPlaying.value = !videoEl.paused;
+    syncPlayerPlaybackRateInfo();
+  };
+  const handlePlay = () => {
+    playerIsPlaying.value = true;
+  };
+  const handlePause = () => {
+    playerIsPlaying.value = false;
+  };
+  const handleRateChange = () => {
+    playerPlaybackRate.value = Number(videoEl.playbackRate || 1);
+    syncPlayerPlaybackRateInfo();
+  };
+  const handleEnded = () => {
+    playerIsPlaying.value = false;
+    playerPlaybackTarget.value = null;
+  };
+
+  videoEl.addEventListener("loadedmetadata", handleLoadedMetadata);
+  videoEl.addEventListener("play", handlePlay);
+  videoEl.addEventListener("pause", handlePause);
+  videoEl.addEventListener("ratechange", handleRateChange);
+  videoEl.addEventListener("ended", handleEnded);
+
+  playerVideoEventCleanup = () => {
+    videoEl.removeEventListener("loadedmetadata", handleLoadedMetadata);
+    videoEl.removeEventListener("play", handlePlay);
+    videoEl.removeEventListener("pause", handlePause);
+    videoEl.removeEventListener("ratechange", handleRateChange);
+    videoEl.removeEventListener("ended", handleEnded);
+  };
+}
+
+function createLocalVideoPlayer(videoEl) {
+  return {
+    playVideo() {
+      return videoEl.play();
+    },
+    pauseVideo() {
+      videoEl.pause();
+    },
+    seekTo(seconds) {
+      videoEl.currentTime = Math.max(0, Number(seconds || 0));
+    },
+    getCurrentTime() {
+      return Number(videoEl.currentTime || 0);
+    },
+    getAvailablePlaybackRates() {
+      return PLAYER_PLAYBACK_RATES.slice();
+    },
+    getPlaybackRate() {
+      return Number(videoEl.playbackRate || 1);
+    },
+    setPlaybackRate(rate) {
+      videoEl.playbackRate = Number(rate || 1);
+    },
+    destroy() {
+      videoEl.pause();
+      videoEl.removeAttribute("src");
+      videoEl.load();
+    },
+  };
+}
+
 function destroyEnglishPlayer() {
   stopEnglishPlayerTimer();
   playerMountPromise = null;
   playerIframeReady.value = false;
   clearPinnedSubtitleIndex();
+  detachPlayerVideoEvents();
   if (englishPlayerInstance && typeof englishPlayerInstance.destroy === "function") {
     englishPlayerInstance.destroy();
   }
   englishPlayerInstance = null;
   playerIsPlaying.value = false;
   playerAvailablePlaybackRates.value = PLAYER_PLAYBACK_RATES.slice();
+  revokePlayerVideoUrl();
 }
 
 function canReuseExistingPlayerSession(options = {}) {
@@ -4595,7 +4790,7 @@ function canReuseExistingPlayerSession(options = {}) {
   }
 
   const requestedVideoId =
-    String(options.videoId || "").trim() || extractYoutubeVideoIdSafe(options.youtubeUrl || "");
+    String(options.videoId || "").trim() || parseLocalMaterialId(options.youtubeUrl || "");
   if (!requestedVideoId || requestedVideoId !== playerVideoId.value) {
     return false;
   }
@@ -4619,74 +4814,33 @@ async function mountEnglishPlayer(videoId) {
 
   playerMountPromise = (async () => {
     await nextTick();
-    await loadYoutubeIframeApi();
-
     const playerRoot = await waitForPlayerRoot();
-    if (!playerRoot) {
+    if (!(playerRoot instanceof HTMLVideoElement)) {
       throw new Error("The player container is not ready.");
     }
 
-    if (englishPlayerInstance && typeof englishPlayerInstance.loadVideoById === "function") {
-      englishPlayerInstance.loadVideoById({ videoId, startSeconds: 0 });
-      playerCurrentTime.value = 0;
-      playerIsPlaying.value = false;
-      const ready = await waitForPlayerReady();
-      if (!ready) {
-        throw new Error(
-          playerInitError.value || "Timed out while waiting for the player to become ready."
-        );
-      }
-      syncPlayerPlaybackRateInfo();
-      applyPreferredPlaybackRate();
-      startEnglishPlayerTimer();
-      return;
+    const videoBlob =
+      playerCurrentVideoBlob instanceof Blob
+        ? playerCurrentVideoBlob
+        : await loadLocalVideoBlob(videoId);
+    if (!(videoBlob instanceof Blob)) {
+      throw new Error("No cached local video was found for this material.");
     }
 
+    playerCurrentVideoBlob = videoBlob;
     playerIframeReady.value = false;
-    englishPlayerInstance = new window.YT.Player("english-learning-player", {
-      videoId,
-      width: "100%",
-      height: "100%",
-      host: YOUTUBE_PLAYER_HOST,
-      playerVars: {
-        rel: 0,
-        modestbranding: 1,
-        playsinline: 1,
-        enablejsapi: 1,
-        origin: window.location.origin,
-      },
-      events: {
-        onReady: () => {
-          playerIframeReady.value = true;
-          playerCurrentTime.value = 0;
-          playerIsPlaying.value = false;
-          syncPlayerPlaybackRateInfo();
-          applyPreferredPlaybackRate();
-        },
-        onStateChange: (event) => {
-          if (!window.YT || typeof window.YT.PlayerState === "undefined") {
-            return;
-          }
-          playerIsPlaying.value = event.data === window.YT.PlayerState.PLAYING;
-          syncPlayerPlaybackRateInfo();
-        },
-        onPlaybackRateChange: (event) => {
-          const nextRate = Number(event?.data);
-          if (Number.isFinite(nextRate) && nextRate > 0) {
-            playerPlaybackRate.value = nextRate;
-          }
-          syncPlayerPlaybackRateInfo();
-        },
-        onError: (event) => {
-          const code = event?.data;
-          playerInitError.value = `YouTube player error code ${code}`;
-          console.warn("YouTube Player onError:", code);
-        },
-        onAutoplayBlocked: () => {
-          playerInitError.value = "Autoplay was blocked by the browser. Click the video once first.";
-        },
-      },
-    });
+    playerCurrentTime.value = 0;
+    playerIsPlaying.value = false;
+    attachPlayerVideoEvents(playerRoot);
+    revokePlayerVideoUrl();
+    playerVideoObjectUrl = URL.createObjectURL(videoBlob);
+    playerRoot.src = playerVideoObjectUrl;
+    playerRoot.currentTime = 0;
+    playerRoot.preload = "auto";
+    playerRoot.playsInline = true;
+    englishPlayerInstance = createLocalVideoPlayer(playerRoot);
+    applyPreferredPlaybackRate();
+    playerRoot.load();
 
     const ready = await waitForPlayerReady();
     if (!ready) {
@@ -4823,6 +4977,7 @@ async function loadPlayerTranscript() {
       subtitleCode: playerSelectedSubtitle.value,
       subtitleFileName: playerSubtitleFileName.value,
       subtitleLines: lines,
+      hasVideo: playerHasVideo.value,
     });
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
@@ -5148,9 +5303,30 @@ body {
   background: #000;
 }
 
-#english-learning-player {
+.player-local-video,
+.player-video-empty {
   position: absolute;
   inset: 0;
+}
+
+.player-local-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.player-video-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  text-align: center;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 42%),
+    linear-gradient(135deg, #111827, #1f2937);
 }
 
 .player-subtitle-panel {

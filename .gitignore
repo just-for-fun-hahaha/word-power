@@ -32,6 +32,7 @@ Thumbs.db
 
 # 项目特定
 outputs/
+downloads/
 *.xlsx
 *.srt
 nltk_data/

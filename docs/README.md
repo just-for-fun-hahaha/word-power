@@ -22,12 +22,12 @@
 
 ```text
 word-power/
+├── requirements.txt            # Python 脚本依赖
+├── venv/                       # 可选，本地虚拟环境
 ├── frontend/
 │   ├── public/
 │   │   └── word_labels.csv      # 默认词表（启动时自动加载）
 │   └── src/App.vue              # 主应用（播放器 + 词汇学习）
-├── backend/
-│   └── requirements.txt         # 字幕下载脚本依赖（保留给 venv 使用）
 ├── scripts/
 │   └── download_youtube_subtitles.py  # 按链接下载字幕到本地
 ├── mastered_words.csv           # 历史掌握词示例数据

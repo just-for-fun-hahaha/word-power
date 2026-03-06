@@ -3,7 +3,7 @@
 
 使用方式（建议在已有 venv 中执行）：
   1) 安装依赖：
-     pip install -r backend/requirements.txt
+     pip install -r requirements.txt
   2) 下载字幕：
      python3 scripts/download_youtube_subtitles.py "https://www.youtube.com/watch?v=xxxxx"
   3) 常用参数：
@@ -64,7 +64,7 @@ def _load_api_class():
         from youtube_transcript_api import YouTubeTranscriptApi
     except ImportError as exc:
         raise RuntimeError(
-            "缺少 youtube-transcript-api 依赖，请先执行: pip install youtube-transcript-api"
+            "缺少 youtube-transcript-api 依赖，请先执行: pip install -r requirements.txt"
         ) from exc
 
     return YouTubeTranscriptApi
