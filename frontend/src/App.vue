@@ -3,7 +3,7 @@
     <div id="app">
       <a-layout class="layout">
         <a-layout-header class="header">
-          <button class="header-home-btn" title="首页" @click="goHome">
+          <button class="header-home-btn" title="Home" @click="goHome">
             <HomeOutlined />
           </button>
           <div class="header-main">
@@ -15,28 +15,28 @@
                 :disabled="!canOpenPlayerPage"
                 @click="goPlayerPage"
               >
-                播放器
+                Player
               </button>
               <button
                 class="header-nav-item"
                 :class="{ active: currentPage === 'ted' && !showStatsPage }"
                 @click="goTedAnalysisPage"
               >
-                词汇分析
+                Vocabulary
               </button>
               <button
                 class="header-nav-item"
                 :class="{ active: currentPage === 'ted' && showStatsPage }"
                 @click="goTedStatsPage"
               >
-                统计图表
+                Statistics
               </button>
               <button
                 class="header-nav-item"
                 :class="{ active: currentPage === 'settings' }"
                 @click="goSettingsPage"
               >
-                系统设置
+                Settings
               </button>
             </div>
           </div>
@@ -53,7 +53,7 @@
                 <a-input
                   class="home-link-input"
                   v-model:value="homeYoutubeUrl"
-                  placeholder="粘贴 YouTube 视频链接"
+                  placeholder="Paste a YouTube URL"
                   :disabled="homeParseLoading"
                   allow-clear
                   @pressEnter="parseHomeVideo"
@@ -62,13 +62,13 @@
                   :disabled="homeParseLoading"
                   @click="triggerHomeSubtitleUpload"
                 >
-                  上传字幕
+                  Upload Subtitles
                 </a-button>
                 <span
                   class="home-upload-status"
                   :class="{ ready: !!homeSubtitleFileName }"
                 >
-                  {{ homeSubtitleFileName || "未上传字幕" }}
+                  {{ homeSubtitleFileName || "No subtitles uploaded" }}
                 </span>
                 <a-button
                   type="primary"
@@ -76,7 +76,7 @@
                   :disabled="!homeYoutubeUrl.trim() || !homeSubtitleFile"
                   @click="parseHomeVideo"
                 >
-                  开始解析
+                  Parse
                 </a-button>
                 <input
                   ref="homeSubtitleInputRef"
@@ -99,7 +99,7 @@
               <div v-if="homeSubtitleOptions.length > 0" class="home-entry-next">
                 <a-select
                   v-model:value="homeSelectedSubtitle"
-                  placeholder="选择英文人工字幕"
+                  placeholder="Choose English subtitles"
                   style="width: min(280px, 100%)"
                 >
                   <a-select-option
@@ -115,32 +115,32 @@
                   :disabled="!homeCanStartLearning"
                   @click="startLearningFromHome"
                 >
-                  开始学习
+                  Start Learning
                 </a-button>
                 <a-button
                   :disabled="!homeCanStartLearning"
                   @click="goToSubtitleAnalysisFromHome"
                 >
-                  字幕词汇分析
+                  Analyze Vocabulary
                 </a-button>
               </div>
               <div v-if="homeParsedTitle" class="home-entry-video-title">
-                视频：{{ homeParsedTitle }}
+                Video: {{ homeParsedTitle }}
               </div>
             </div>
 
             <div v-if="playerHistoryVideos.length > 0" class="home-history-card">
               <div class="home-history-header">
                 <div class="section-header">
-                  <h2>已添加视频</h2>
+                  <h2>Added Videos</h2>
                   <p v-if="homeHistorySelectionMode">
-                    已选择 {{ homeSelectedHistoryIds.length }} 个视频
+                    {{ homeSelectedHistoryIds.length }} selected
                   </p>
-                  <p v-else>点击卡片可直接开始学习</p>
+                  <p v-else>Click a card to resume learning</p>
                 </div>
                 <div class="home-history-toolbar">
                   <a-button size="small" @click="toggleHomeHistorySelectionMode">
-                    {{ homeHistorySelectionMode ? "取消选择" : "选择" }}
+                    {{ homeHistorySelectionMode ? "Cancel" : "Select" }}
                   </a-button>
                   <a-button
                     v-if="homeHistorySelectionMode"
@@ -149,7 +149,7 @@
                     :disabled="homeSelectedHistoryIds.length === 0"
                     @click="removeSelectedHistoryVideos"
                   >
-                    删除选中
+                    Delete Selected
                   </a-button>
                 </div>
               </div>
@@ -168,7 +168,7 @@
                     v-if="homeHistorySelectionMode"
                     class="home-history-card-check"
                   >
-                    {{ isHomeHistorySelected(item.id) ? "已选中" : "点击选择" }}
+                    {{ isHomeHistorySelected(item.id) ? "Selected" : "Click to select" }}
                   </div>
                   <div
                     class="home-history-thumb"
@@ -180,14 +180,14 @@
                       :alt="getHistoryDisplayTitle(item)"
                       loading="lazy"
                     />
-                    <span v-else>无缩略图</span>
+                    <span v-else>No thumbnail</span>
                   </div>
                   <div class="home-history-title">
                     {{ getHistoryDisplayTitle(item) }}
                   </div>
                   <div class="home-history-url">{{ item.url }}</div>
                   <div class="home-history-meta">
-                    字幕 {{ (item.subtitleLines || []).length }} 句
+                    {{ (item.subtitleLines || []).length }} subtitle lines
                   </div>
                 </div>
               </div>
@@ -198,27 +198,27 @@
           <div v-if="currentPage === 'settings'" class="settings-page">
             <div class="settings-card">
               <div class="section-header">
-                <h2>系统设置</h2>
-                <p>管理词表与学习数据（学习数据即掌握词）</p>
+                <h2>Settings</h2>
+                <p>Manage your word list and learning data.</p>
               </div>
               <div class="settings-actions">
                 <a-button type="primary" @click="triggerImportLearningData">
-                  导入学习数据
+                  Import Learning Data
                 </a-button>
                 <a-button @click="exportLearningData">
-                  导出学习数据
+                  Export Learning Data
                 </a-button>
                 <a-button @click="triggerWordLabelsUpload">
-                  导入词表
+                  Import Word List
                 </a-button>
                 <span class="settings-meta">
-                  词表词数：{{ wordLabelsCount }}
+                  Word list size: {{ wordLabelsCount }}
                 </span>
                 <span class="settings-meta">
-                  词表版本：{{ wordLabelsVersion || "未上传" }}
+                  Word list version: {{ wordLabelsVersion || "Not uploaded" }}
                 </span>
                 <span class="settings-meta">
-                  学习数据版本：{{ learningDataVersion || "未上传" }}
+                  Learning data version: {{ learningDataVersion || "Not uploaded" }}
                 </span>
                 <input
                   ref="learningDataInputRef"
@@ -242,26 +242,26 @@
           <div v-if="currentPage === 'ted'">
             <div v-if="showStatsPage" class="stats-page">
               <div class="stats-header">
-                <h2>每日学习情况统计</h2>
+                <h2>Learning Statistics</h2>
                 <a-radio-group
                   v-model:value="statsGranularity"
                   @change="loadStatsData"
                   button-style="solid"
                 >
-                  <a-radio-button value="day">按天</a-radio-button>
-                  <a-radio-button value="month">按月</a-radio-button>
+                  <a-radio-button value="day">Daily</a-radio-button>
+                  <a-radio-button value="month">Monthly</a-radio-button>
                 </a-radio-group>
               </div>
               <div class="stats-charts-container">
                 <div class="stats-chart-item">
-                  <h3>累积掌握词汇数量</h3>
+                  <h3>Cumulative Mastered Words</h3>
                   <div
                     ref="cumulativeChartContainer"
                     style="width: 100%; height: 400px;"
                   ></div>
                 </div>
                 <div class="stats-chart-item">
-                  <h3>每日新增词汇数量</h3>
+                  <h3>New Words per Day</h3>
                   <div
                     ref="newWordsChartContainer"
                     style="width: 100%; height: 400px;"
@@ -274,7 +274,7 @@
             <!-- 左侧：表格区域 -->
             <div class="table-section">
               <div class="section-header">
-                <h2>单词列表</h2>
+                <h2>Word List</h2>
               </div>
 
               <a-table
@@ -293,13 +293,13 @@
                       <a-button
                         type="link"
                         size="default"
-                        title="将当前页所有单词标记为烂熟于心"
+                        title="Mark all words on this page as mastered"
                         @click="markTedCurrentPageMastered"
                         style="padding: 0; height: auto; font-size: 16px"
                       >
                         <CheckCircleOutlined style="color: #52c41a; font-size: 18px;" />
                       </a-button>
-                      <span>单词</span>
+                      <span>Word</span>
                     </div>
                   </template>
                 </template>
@@ -316,7 +316,7 @@
                         v-if="!record.mastered"
                         type="text"
                         size="small"
-                        title="标记为烂熟于心"
+                        title="Mark as mastered"
                         @click="markWordMastered(record.word)"
                         style="padding: 0; min-width: auto; flex-shrink: 0;"
                       >
@@ -328,7 +328,7 @@
                         v-else
                         type="text"
                         size="small"
-                        title="取消标记"
+                        title="Remove mastered mark"
                         @click="unmarkWordMastered(record.word)"
                         style="padding: 0; min-width: auto; flex-shrink: 0;"
                       >
@@ -344,13 +344,13 @@
                       v-for="tag in record.tags"
                       :key="tag"
                       :color="
-                        tag === '常用3000'
+                        tag === WORD_TAG_TOP_3000
                           ? 'green'
-                          : tag === '常用5000'
+                          : tag === WORD_TAG_TOP_5000
                           ? 'blue'
-                          : tag === '常用10000'
+                          : tag === WORD_TAG_TOP_10000
                           ? 'orange'
-                          : tag === '常用10000+'
+                          : tag === WORD_TAG_10000_PLUS
                           ? 'volcano'
                           : 'default'
                       "
@@ -373,7 +373,7 @@
             <!-- 右侧：配置区域 -->
             <div class="config-section">
               <div class="section-header">
-                <h2>分析与统计</h2>
+                <h2>Analysis & Stats</h2>
               </div>
 
               <div class="config-content">
@@ -389,7 +389,7 @@
                 <div class="config-top-section">
                   <div class="learning-progress-section" v-if="learningProgress">
                     <div class="section-header">
-                      <h2>学习进度（全局）</h2>
+                      <h2>Global Learning Progress</h2>
                     </div>
                     <div class="progress-content">
                       <div
@@ -400,7 +400,7 @@
                         @click="showUnmasteredWords(label, progress)"
                       >
                         <div class="progress-header">
-                          <span class="progress-label">常用{{ label }}</span>
+                          <span class="progress-label">{{ formatWordLevelLabel(label) }}</span>
                           <span class="progress-percentage"
                             >{{ progress.mastered }} / {{ progress.total }} ({{
                               progress.percentage
@@ -429,67 +429,169 @@
                 <!-- 统计概览 -->
                 <div class="overview-section" v-if="tedResults.length > 0">
                   <div class="section-header">
-                    <h2>统计概览</h2>
+                    <h2>Overview</h2>
                   </div>
                   <div class="overview-content">
                     <div class="overview-item">
-                      <div class="overview-label">词汇量（不重复）</div>
+                      <div class="overview-label">Unique Words</div>
                       <div class="overview-value">{{ tedResults.length }}</div>
                     </div>
                     <div class="overview-item">
-                      <div class="overview-label">烂熟于心</div>
+                      <div class="overview-label">Mastered</div>
                       <div class="overview-value mastered-count">
                         {{ tedResults.filter(item => item.mastered).length }}
                       </div>
                     </div>
                     <div class="overview-item" v-if="tedTagCounts.common3000.total > 0">
-                      <div class="overview-label">常用3000</div>
+                      <div class="overview-label">Top 3000</div>
                       <div class="overview-value">
                         <span class="value-unmastered">{{ tedTagCounts.common3000.unmastered }}</span>
                         <span class="value-detail"
-                          >（总<span class="value-total">{{ tedTagCounts.common3000.total }}</span
-                          >熟<span class="value-mastered">{{ tedTagCounts.common3000.mastered }}</span>）</span
+                          >(total <span class="value-total">{{ tedTagCounts.common3000.total }}</span
+                          >, mastered <span class="value-mastered">{{ tedTagCounts.common3000.mastered }}</span>)</span
                         >
                       </div>
                     </div>
                     <div class="overview-item" v-if="tedTagCounts.common5000.total > 0">
-                      <div class="overview-label">常用5000</div>
+                      <div class="overview-label">Top 5000</div>
                       <div class="overview-value">
                         <span class="value-unmastered">{{ tedTagCounts.common5000.unmastered }}</span>
                         <span class="value-detail"
-                          >（总<span class="value-total">{{ tedTagCounts.common5000.total }}</span
-                          >熟<span class="value-mastered">{{ tedTagCounts.common5000.mastered }}</span>）</span
+                          >(total <span class="value-total">{{ tedTagCounts.common5000.total }}</span
+                          >, mastered <span class="value-mastered">{{ tedTagCounts.common5000.mastered }}</span>)</span
                         >
                       </div>
                     </div>
                     <div class="overview-item" v-if="tedTagCounts.common10000.total > 0">
-                      <div class="overview-label">常用10000</div>
+                      <div class="overview-label">Top 10000</div>
                       <div class="overview-value">
                         <span class="value-unmastered">{{ tedTagCounts.common10000.unmastered }}</span>
                         <span class="value-detail"
-                          >（总<span class="value-total">{{ tedTagCounts.common10000.total }}</span
-                          >熟<span class="value-mastered">{{ tedTagCounts.common10000.mastered }}</span>）</span
+                          >(total <span class="value-total">{{ tedTagCounts.common10000.total }}</span
+                          >, mastered <span class="value-mastered">{{ tedTagCounts.common10000.mastered }}</span>)</span
                         >
                       </div>
                     </div>
                     <div class="overview-item" v-if="tedTagCounts.common10000Plus.total > 0">
-                      <div class="overview-label">常用10000+</div>
+                      <div class="overview-label">10000+</div>
                       <div class="overview-value">
                         <span class="value-unmastered">{{ tedTagCounts.common10000Plus.unmastered }}</span>
                         <span class="value-detail"
-                          >（总<span class="value-total">{{ tedTagCounts.common10000Plus.total }}</span
-                          >熟<span class="value-mastered">{{ tedTagCounts.common10000Plus.mastered }}</span>）</span
+                          >(total <span class="value-total">{{ tedTagCounts.common10000Plus.total }}</span
+                          >, mastered <span class="value-mastered">{{ tedTagCounts.common10000Plus.mastered }}</span>)</span
                         >
                       </div>
                     </div>
                     <div class="overview-item" v-if="tedTagCounts.nonCommon.total > 0">
-                      <div class="overview-label">非10000内</div>
+                      <div class="overview-label">Off-list</div>
                       <div class="overview-value">
                         <span class="value-unmastered">{{ tedTagCounts.nonCommon.unmastered }}</span>
                         <span class="value-detail"
-                          >（总<span class="value-total">{{ tedTagCounts.nonCommon.total }}</span
-                          >熟<span class="value-mastered">{{ tedTagCounts.nonCommon.mastered }}</span>）</span
+                          >(total <span class="value-total">{{ tedTagCounts.nonCommon.total }}</span
+                          >, mastered <span class="value-mastered">{{ tedTagCounts.nonCommon.mastered }}</span>)</span
                         >
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="difficulty-section" v-if="tedDifficultyAssessment">
+                  <div class="section-header">
+                    <h2>Difficulty Assessment</h2>
+                    <p>Based on {{ tedDifficultyAssessment.sampleLabel }}, combining material-level and personal difficulty.</p>
+                  </div>
+
+                  <div class="difficulty-summary-grid">
+                    <div class="difficulty-summary-card">
+                      <div class="difficulty-card-header">
+                        <span class="difficulty-card-label">Objective Difficulty</span>
+                        <span :class="getDifficultyBadgeClass(tedDifficultyAssessment.objective.levelKey)">
+                          {{ tedDifficultyAssessment.objective.label }}
+                        </span>
+                      </div>
+                      <div class="difficulty-card-score">
+                        {{ tedDifficultyAssessment.objective.score }}
+                      </div>
+                      <div class="difficulty-card-desc">
+                        {{ tedDifficultyAssessment.objective.description }}
+                      </div>
+                    </div>
+
+                    <div class="difficulty-summary-card">
+                      <div class="difficulty-card-header">
+                        <span class="difficulty-card-label">Difficulty for Me</span>
+                        <span :class="getDifficultyBadgeClass(tedDifficultyAssessment.personal.levelKey)">
+                          {{ tedDifficultyAssessment.personal.label }}
+                        </span>
+                      </div>
+                      <div class="difficulty-card-score">
+                        {{ tedDifficultyAssessment.personal.score }}
+                      </div>
+                      <div class="difficulty-card-desc">
+                        {{ tedDifficultyAssessment.personal.description }}
+                      </div>
+                    </div>
+
+                    <div class="difficulty-summary-card difficulty-summary-card-fit">
+                      <div class="difficulty-card-header">
+                        <span class="difficulty-card-label">i+1 Fit</span>
+                        <span :class="getDifficultyBadgeClass(tedDifficultyAssessment.fit.key)">
+                          {{ tedDifficultyAssessment.fit.label }}
+                        </span>
+                      </div>
+                      <div class="difficulty-fit-value">
+                        {{ tedDifficultyAssessment.fit.supportingValue }}
+                      </div>
+                      <div class="difficulty-card-desc">
+                        {{ tedDifficultyAssessment.fit.description }}
+                      </div>
+                      <div class="difficulty-fit-subvalue">
+                        {{ tedDifficultyAssessment.fit.secondaryValue }} ·
+                        {{ tedDifficultyAssessment.fit.recommendation }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="difficulty-insight">
+                    {{ tedDifficultyAssessment.summary }}
+                  </div>
+
+                  <div class="difficulty-metrics-grid">
+                    <div class="difficulty-metrics-card">
+                      <div class="difficulty-metrics-title">Material-Level Metrics</div>
+                      <div class="difficulty-metric-list">
+                        <div
+                          v-for="metric in tedDifficultyAssessment.objective.metrics"
+                          :key="`objective-${metric.label}`"
+                          class="difficulty-metric-item"
+                        >
+                          <div class="difficulty-metric-row">
+                            <span class="difficulty-metric-label">{{ metric.label }}</span>
+                            <span class="difficulty-metric-value">
+                              {{ metric.value }}{{ metric.suffix || "" }}
+                            </span>
+                          </div>
+                          <div class="difficulty-metric-hint">{{ metric.hint }}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="difficulty-metrics-card">
+                      <div class="difficulty-metrics-title">Personalized Metrics</div>
+                      <div class="difficulty-metric-list">
+                        <div
+                          v-for="metric in tedDifficultyAssessment.personal.metrics"
+                          :key="`personal-${metric.label}`"
+                          class="difficulty-metric-item"
+                        >
+                          <div class="difficulty-metric-row">
+                            <span class="difficulty-metric-label">{{ metric.label }}</span>
+                            <span class="difficulty-metric-value">
+                              {{ metric.value }}{{ metric.suffix || "" }}
+                            </span>
+                          </div>
+                          <div class="difficulty-metric-hint">{{ metric.hint }}</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -519,8 +621,18 @@
                 <div class="player-video-controls">
                   <div class="player-video-main-controls">
                     <a-button
+                      class="player-icon-btn player-icon-btn-edge"
+                      title="Jump to Start"
+                      @click="jumpToTranscriptStart"
+                      :disabled="!canJumpSubtitle"
+                    >
+                      <template #icon>
+                        <FastBackwardOutlined />
+                      </template>
+                    </a-button>
+                    <a-button
                       class="player-icon-btn"
-                      title="上一句"
+                      title="Previous Line"
                       @click="playPrevSubtitle"
                       :disabled="!canJumpSubtitle"
                     >
@@ -531,7 +643,7 @@
                     <a-button
                       class="player-icon-btn player-icon-btn-play"
                       type="primary"
-                      :title="playerIsPlaying ? '暂停' : '播放'"
+                      :title="playerIsPlaying ? 'Pause' : 'Play'"
                       @click="togglePlayerPlayPause"
                       :disabled="!canControlPlayback"
                     >
@@ -542,13 +654,35 @@
                     </a-button>
                     <a-button
                       class="player-icon-btn"
-                      title="下一句"
+                      title="Next Line"
                       @click="playNextSubtitle"
                       :disabled="!canJumpSubtitle"
                     >
                       <template #icon>
                         <StepForwardOutlined />
                       </template>
+                    </a-button>
+                    <a-button
+                      class="player-icon-btn player-icon-btn-edge"
+                      title="Jump to End"
+                      @click="jumpToTranscriptEnd"
+                      :disabled="!canJumpSubtitle"
+                    >
+                      <template #icon>
+                        <FastForwardOutlined />
+                      </template>
+                    </a-button>
+                  </div>
+                  <div class="player-video-rate-controls">
+                    <a-button
+                      v-for="rate in PLAYER_PLAYBACK_RATES"
+                      :key="rate"
+                      class="player-rate-btn"
+                      :type="playerPlaybackRate === rate ? 'primary' : 'default'"
+                      :disabled="!canControlPlayback || !isPlaybackRateAvailable(rate)"
+                      @click="setPlayerPlaybackRate(rate)"
+                    >
+                      {{ formatPlaybackRateLabel(rate) }}
                     </a-button>
                   </div>
                   <div class="player-video-secondary-controls">
@@ -557,14 +691,14 @@
                       :type="playerAbSelectionMode ? 'primary' : 'default'"
                       @click="toggleAbSelectionMode"
                     >
-                      AB播放
+                      AB Loop
                     </a-button>
                     <a-button
                       class="player-secondary-btn"
                       :disabled="!canCopyAbRangeText"
                       @click="copyAbSubtitleRange"
                     >
-                      AB复制
+                      Copy AB
                     </a-button>
                     <a-button
                       class="player-secondary-btn"
@@ -573,11 +707,11 @@
                       :disabled="!canAnalyzeCurrentPlayerSubtitle"
                       @click="analyzeCurrentSubtitleVocabulary"
                     >
-                      词汇分析
+                      Vocabulary
                     </a-button>
                   </div>
                   <span v-if="playerAbSelectionMode" class="player-ab-hint">
-                    请选择两句作为 A / B（再次点击 AB 按钮可退出）
+                    Select two subtitle lines as A / B (click AB Loop again to exit)
                   </span>
                   <span
                     v-else-if="canPlayAbRange"
@@ -601,7 +735,7 @@
                   v-else-if="playerTranscriptLines.length === 0"
                   class="player-subtitle-empty"
                 >
-                  暂无字幕内容
+                  No subtitles loaded
                 </div>
 
                 <div
@@ -634,7 +768,7 @@
                       class="player-subtitle-time"
                       role="button"
                       tabindex="0"
-                      :title="playerAbSelectionMode ? '选择该句作为 AB 片段' : '播放该句字幕'"
+                      :title="playerAbSelectionMode ? 'Use this line for AB selection' : 'Play this subtitle line'"
                       @click="handleSubtitleTimeClick(line, idx)"
                       @keydown.enter.prevent="handleSubtitleTimeClick(line, idx)"
                       @keydown.space.prevent="handleSubtitleTimeClick(line, idx)"
@@ -657,7 +791,7 @@
 
     <a-modal
       v-model:open="setupDataModalOpen"
-      title="初始化词表与学习数据"
+      title="Set Up Word List and Learning Data"
       :closable="false"
       :keyboard="false"
       :mask-closable="false"
@@ -666,27 +800,29 @@
     >
       <div class="setup-modal-body">
         <p class="setup-modal-desc">
-          首次使用或版本缺失时，会优先读取同目录 word_labels.csv；若读取失败，再手动导入词表和学习数据文件。
+          On first launch or when version info is missing, the app will try to load
+          <code>word_labels.csv</code> from the current directory first. If that fails,
+          import the word list and learning data manually.
         </p>
 
         <div class="setup-modal-item">
-          <div class="setup-modal-item-title">1. 导入词表（word_labels.csv）</div>
+          <div class="setup-modal-item-title">1. Import word list (word_labels.csv)</div>
           <input
             type="file"
             accept=".csv"
             @change="handleSetupWordLabelsFileChange"
           />
           <div class="setup-modal-meta">
-            当前词表版本：{{ wordLabelsVersion || "未上传" }}
+            Current word list version: {{ wordLabelsVersion || "Not uploaded" }}
           </div>
           <div class="setup-modal-meta">
-            本次选择文件：{{ setupWordLabelsFileName || "未选择文件" }}
+            Selected this time: {{ setupWordLabelsFileName || "No file selected" }}
           </div>
         </div>
 
         <div class="setup-modal-item">
           <div class="setup-modal-item-title">
-            2. 导入学习数据（mastered_words.csv）
+            2. Import learning data (mastered_words.csv)
           </div>
           <input
             type="file"
@@ -694,10 +830,10 @@
             @change="handleSetupLearningDataFileChange"
           />
           <div class="setup-modal-meta">
-            当前学习数据版本：{{ learningDataVersion || "未上传" }}
+            Current learning data version: {{ learningDataVersion || "Not uploaded" }}
           </div>
           <div class="setup-modal-meta">
-            本次选择文件：{{ setupLearningDataFileName || "未选择文件" }}
+            Selected this time: {{ setupLearningDataFileName || "No file selected" }}
           </div>
         </div>
 
@@ -707,7 +843,7 @@
             :disabled="!isDataSetupReady"
             @click="closeSetupModal"
           >
-            开始使用
+            Start
           </a-button>
         </div>
       </div>
@@ -716,7 +852,7 @@
     <!-- 未学习单词弹框 -->
     <a-modal
       v-model:open="unmasteredWordsModal.visible"
-      :title="`常用${unmasteredWordsModal.label} - 未学习单词`"
+      :title="`${formatWordLevelLabel(unmasteredWordsModal.label)} - Unmastered Words`"
       width="900px"
       :footer="null"
       :loading="unmasteredWordsModal.loading"
@@ -725,7 +861,7 @@
         <a-spin size="large" />
       </div>
       <div v-else-if="unmasteredWordsModal.words.length === 0" style="text-align: center; padding: 40px; color: #999">
-        没有未学习的单词
+        No unmastered words
       </div>
       <div v-else>
         <a-table
@@ -759,7 +895,7 @@
                 <CheckCircleFilled
                   v-else
                   style="color: #999; font-size: 14px; flex-shrink: 0;"
-                  title="已标记为烂熟于心"
+                  title="Already marked as mastered"
                 />
                 <span
                   :style="{
@@ -784,20 +920,22 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, h } from "vue";
-import zhCN from "ant-design-vue/es/locale/zh_CN";
+import enUS from "ant-design-vue/es/locale/en_US";
 import {
   CheckCircleOutlined,
   CheckCircleFilled,
   CloseOutlined,
   HomeOutlined,
+  FastBackwardOutlined,
   StepBackwardOutlined,
   StepForwardOutlined,
+  FastForwardOutlined,
   CaretRightOutlined,
   PauseOutlined,
 } from "@ant-design/icons-vue";
 import { message, Modal } from "ant-design-vue";
 
-const locale = zhCN;
+const locale = enUS;
 
 const PLAYER_HISTORY_STORAGE_KEY = "word_power_player_history_v2";
 const MASTERED_WORDS_STORAGE_KEY = "word_power_mastered_words_v1";
@@ -809,6 +947,11 @@ const FIXED_MASTERED_WORDS_FILE_NAME = "mastered_words.csv";
 const BASE_WORD_LABELS = ["3000", "5000", "10000"];
 const FALLBACK_WORD_LABEL = "10000+";
 const FALLBACK_WORD_TOTAL = 20000;
+const WORD_TAG_TOP_3000 = "Top 3000";
+const WORD_TAG_TOP_5000 = "Top 5000";
+const WORD_TAG_TOP_10000 = "Top 10000";
+const WORD_TAG_10000_PLUS = "10000+";
+const WORD_TAG_OFF_LIST = "Off-list";
 const PLAYER_TIMER_INTERVAL_MS = 80;
 const SINGLE_LINE_STOP_BUFFER = 0.04;
 const SINGLE_LINE_EARLY_PAUSE_SEC = 0.12;
@@ -817,6 +960,7 @@ const SINGLE_LINE_NEXT_GUARD_SEC = 0.01;
 const DEFAULT_SUBTITLE_ACCEPT = ".srt,.vtt,.json";
 const ENABLE_YOUTUBE_OEMBED_TITLE_FETCH = false;
 const YOUTUBE_PLAYER_HOST = "https://www.youtube-nocookie.com";
+const PLAYER_PLAYBACK_RATES = [0.5, 1, 1.25, 1.5, 2];
 
 function isIOSLikeDevice() {
   if (typeof navigator === "undefined") return false;
@@ -847,7 +991,7 @@ function openTedPage() {
 
 function goPlayerPage() {
   if (!canOpenPlayerPage.value) {
-    message.info("请先添加并解析一个视频");
+    message.info("Add and parse a video first.");
     return;
   }
   showStatsPage.value = false;
@@ -866,6 +1010,19 @@ function goTedStatsPage() {
 function goSettingsPage() {
   showStatsPage.value = false;
   currentPage.value = "settings";
+}
+
+function reopenExistingPlayerPage() {
+  playerError.value = "";
+  showStatsPage.value = false;
+  currentPage.value = "player";
+}
+
+function formatWordLevelLabel(label) {
+  if (label === FALLBACK_WORD_LABEL) {
+    return WORD_TAG_10000_PLUS;
+  }
+  return `Top ${label}`;
 }
 
 // ===== 图表状态 =====
@@ -944,13 +1101,13 @@ const canOpenPlayerPage = computed(() => !!playerVideoId.value);
 // ===== TED页面状态 =====
 const tedColumns = [
   {
-    title: "序号",
+    title: "#",
     key: "index",
     width: 80,
     align: "left",
   },
   {
-    title: "单词",
+    title: "Word",
     dataIndex: "word",
     key: "word",
     width: 200,
@@ -958,7 +1115,7 @@ const tedColumns = [
     align: "left",
   },
   {
-    title: "标签",
+    title: "Tag",
     key: "tags",
     width: 150,
     align: "left",
@@ -991,7 +1148,7 @@ const tedPagination = ref({
   pageSize: 20,
   showSizeChanger: true,
   pageSizeOptions: ["10", "20", "50", "100"],
-  showTotal: (total) => `共 ${total} 条`,
+  showTotal: (total) => `${total} items`,
 });
 
 const tedCanAnalyze = computed(() => {
@@ -1018,13 +1175,13 @@ const tedFilteredResults = computed(() => {
     return tedResults.value;
   }
 
-  if (tedSelectedTagFilter.value === "非10000内") {
+  if (tedSelectedTagFilter.value === WORD_TAG_OFF_LIST) {
     return tedResults.value.filter((item) => {
       return (
-        !item.tags.includes("常用3000") &&
-        !item.tags.includes("常用5000") &&
-        !item.tags.includes("常用10000") &&
-        !item.tags.includes("常用10000+")
+        !item.tags.includes(WORD_TAG_TOP_3000) &&
+        !item.tags.includes(WORD_TAG_TOP_5000) &&
+        !item.tags.includes(WORD_TAG_TOP_10000) &&
+        !item.tags.includes(WORD_TAG_10000_PLUS)
       );
     });
   }
@@ -1045,27 +1202,27 @@ const tedTagCounts = computed(() => {
 
   tedResults.value.forEach((item) => {
     const isInCommonList =
-      item.tags.includes("常用3000") ||
-      item.tags.includes("常用5000") ||
-      item.tags.includes("常用10000") ||
-      item.tags.includes("常用10000+");
+      item.tags.includes(WORD_TAG_TOP_3000) ||
+      item.tags.includes(WORD_TAG_TOP_5000) ||
+      item.tags.includes(WORD_TAG_TOP_10000) ||
+      item.tags.includes(WORD_TAG_10000_PLUS);
 
-    if (item.tags.includes("常用3000")) {
+    if (item.tags.includes(WORD_TAG_TOP_3000)) {
       counts.common3000.total++;
       if (item.mastered) counts.common3000.mastered++;
       else counts.common3000.unmastered++;
     }
-    if (item.tags.includes("常用5000")) {
+    if (item.tags.includes(WORD_TAG_TOP_5000)) {
       counts.common5000.total++;
       if (item.mastered) counts.common5000.mastered++;
       else counts.common5000.unmastered++;
     }
-    if (item.tags.includes("常用10000")) {
+    if (item.tags.includes(WORD_TAG_TOP_10000)) {
       counts.common10000.total++;
       if (item.mastered) counts.common10000.mastered++;
       else counts.common10000.unmastered++;
     }
-    if (item.tags.includes("常用10000+")) {
+    if (item.tags.includes(WORD_TAG_10000_PLUS)) {
       counts.common10000Plus.total++;
       if (item.mastered) counts.common10000Plus.mastered++;
       else counts.common10000Plus.unmastered++;
@@ -1078,6 +1235,14 @@ const tedTagCounts = computed(() => {
   });
 
   return counts;
+});
+
+const tedDifficultyAssessment = computed(() => {
+  if (!tedResults.value.length || !tedSubtitleLines.value.length) {
+    return null;
+  }
+
+  return buildTranscriptDifficultyAssessment(tedSubtitleLines.value);
 });
 
 // ===== 未学习单词弹框 =====
@@ -1130,7 +1295,7 @@ const unmasteredWordsPaginationConfig = computed(() => {
     pageSize,
     total,
     showSizeChanger: false,
-    showTotal: (value) => `共 ${value} 个未学习单词`,
+    showTotal: (value) => `${value} unmastered words`,
     onChange: (page) => {
       unmasteredWordsPagination.value.current = page;
     },
@@ -1172,6 +1337,8 @@ const playerAbEndIndex = ref(-1);
 const playerAbSelectionMode = ref(false);
 const playerAbSelectionCandidates = ref([]);
 const playerIsPlaying = ref(false);
+const playerPlaybackRate = ref(1);
+const playerAvailablePlaybackRates = ref(PLAYER_PLAYBACK_RATES.slice());
 const playerPlaybackTarget = ref(null);
 const playerPinnedSubtitleIndex = ref(-1);
 
@@ -1207,6 +1374,10 @@ const canJumpSubtitle = computed(() => {
 const canAnalyzeCurrentPlayerSubtitle = computed(() => {
   return !!playerParsedYoutubeUrl.value && playerTranscriptLines.value.length > 0;
 });
+
+const PLAYER_SUBTITLE_SCROLL_TARGET_RATIO = 0.38;
+const PLAYER_SUBTITLE_SCROLL_MIN_RATIO = 0.2;
+const PLAYER_SUBTITLE_SCROLL_MAX_RATIO = 0.62;
 
 const playerTranscriptHash = computed(() => {
   return computeTranscriptHash(playerTranscriptLines.value);
@@ -1341,22 +1512,57 @@ watch(currentPage, async (newPage, oldPage) => {
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      playerError.value = `播放器初始化失败: ${errorMsg}`;
+      playerError.value = `Player initialization failed: ${errorMsg}`;
     }
   }
 });
+
+function keepActiveSubtitleInComfortZone(index) {
+  const list = playerSubtitleListRef.value;
+  if (!(list instanceof HTMLElement) || index < 0) {
+    return;
+  }
+
+  const activeNode = list.querySelector(`[data-sub-index="${index}"]`);
+  if (!(activeNode instanceof HTMLElement)) {
+    return;
+  }
+
+  const listRect = list.getBoundingClientRect();
+  const nodeRect = activeNode.getBoundingClientRect();
+  const containerHeight = list.clientHeight;
+  if (!containerHeight) {
+    return;
+  }
+
+  const visibleTop = list.scrollTop;
+  const relativeTop = nodeRect.top - listRect.top + visibleTop;
+  const relativeBottom = nodeRect.bottom - listRect.top + visibleTop;
+  const comfortTop = visibleTop + containerHeight * PLAYER_SUBTITLE_SCROLL_MIN_RATIO;
+  const comfortBottom = visibleTop + containerHeight * PLAYER_SUBTITLE_SCROLL_MAX_RATIO;
+
+  if (relativeTop >= comfortTop && relativeBottom <= comfortBottom) {
+    return;
+  }
+
+  const maxScrollTop = Math.max(0, list.scrollHeight - containerHeight);
+  const targetTop = Math.min(
+    maxScrollTop,
+    Math.max(0, relativeTop - containerHeight * PLAYER_SUBTITLE_SCROLL_TARGET_RATIO)
+  );
+
+  list.scrollTo({
+    top: targetTop,
+    behavior: "smooth",
+  });
+}
 
 watch(activePlayerSubtitleIndex, (index, prev) => {
   if (index < 0 || index === prev || !playerSubtitleListRef.value) {
     return;
   }
 
-  const activeNode = playerSubtitleListRef.value.querySelector(
-    `[data-sub-index="${index}"]`
-  );
-  if (activeNode) {
-    activeNode.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }
+  keepActiveSubtitleInComfortZone(index);
 });
 
 onMounted(async () => {
@@ -1417,7 +1623,7 @@ function normalizeYoutubeUrl(value) {
 function extractYoutubeVideoId(youtubeUrl) {
   const value = normalizeYoutubeUrl(youtubeUrl);
   if (!value) {
-    throw new Error("缺少YouTube链接");
+    throw new Error("Missing YouTube URL.");
   }
 
   const idPattern = /^[A-Za-z0-9_-]{11}$/;
@@ -1429,7 +1635,7 @@ function extractYoutubeVideoId(youtubeUrl) {
   try {
     parsed = new URL(value.startsWith("http") ? value : `https://${value}`);
   } catch {
-    throw new Error("无效的YouTube链接");
+    throw new Error("Invalid YouTube URL.");
   }
 
   const host = parsed.hostname.toLowerCase();
@@ -1449,13 +1655,13 @@ function extractYoutubeVideoId(youtubeUrl) {
   }
 
   if (!idPattern.test(videoId)) {
-    throw new Error("无效的YouTube视频链接");
+    throw new Error("Invalid YouTube video URL.");
   }
 
   return videoId;
 }
 
-const GENERIC_YOUTUBE_TITLE_PATTERN = /^YouTube 视频 \([A-Za-z0-9_-]{11}\)$/;
+const GENERIC_YOUTUBE_TITLE_PATTERN = /^YouTube Video \([A-Za-z0-9_-]{11}\)$/;
 
 function extractYoutubeVideoIdSafe(youtubeUrl) {
   try {
@@ -1484,7 +1690,7 @@ async function fetchYoutubeVideoTitle(youtubeUrl) {
     `https://www.youtube.com/oembed?url=${encodeURIComponent(normalizedUrl)}&format=json`;
   const response = await fetch(endpoint, { method: "GET" });
   if (!response.ok) {
-    throw new Error("拉取视频标题失败");
+    throw new Error("Failed to fetch video title.");
   }
 
   const data = await response.json();
@@ -1509,10 +1715,10 @@ function getHistoryDisplayTitle(item) {
 
   const videoId = getHistoryVideoId(item);
   if (videoId) {
-    return `YouTube 视频 ${videoId}`;
+    return `YouTube Video ${videoId}`;
   }
 
-  return rawTitle || String(item?.url || "").trim() || "YouTube 视频";
+  return rawTitle || String(item?.url || "").trim() || "YouTube Video";
 }
 
 function stripHtmlTags(value) {
@@ -1649,12 +1855,12 @@ function parseJsonSubtitleContent(content) {
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error("JSON字幕文件格式错误");
+    throw new Error("Invalid JSON subtitle format.");
   }
 
   const rawLines = Array.isArray(parsed) ? parsed : parsed?.lines;
   if (!Array.isArray(rawLines)) {
-    throw new Error("JSON字幕文件缺少 lines 数组");
+    throw new Error("JSON subtitle file is missing the lines array.");
   }
 
   return normalizeSubtitleLines(rawLines);
@@ -1664,14 +1870,14 @@ async function readFileAsText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("读取文件失败"));
+    reader.onerror = () => reject(new Error("Failed to read file."));
     reader.readAsText(file, "utf-8");
   });
 }
 
 async function parseSubtitleFile(file) {
   if (!file) {
-    throw new Error("请先选择字幕文件");
+    throw new Error("Choose a subtitle file first.");
   }
 
   const text = await readFileAsText(file);
@@ -1693,7 +1899,7 @@ async function parseSubtitleFile(file) {
   }
 
   if (!lines.length) {
-    throw new Error("未解析到有效字幕，请检查文件格式（SRT/VTT/JSON）");
+    throw new Error("No valid subtitles were parsed. Check whether the file is SRT, VTT, or JSON.");
   }
 
   return lines;
@@ -2056,7 +2262,7 @@ function parseLearningDataCsv(csvText) {
           history.push(parsed);
         }
       } catch (err) {
-        console.warn("解析一条历史记录失败，已跳过:", err);
+        console.warn("Failed to parse one history entry. Skipped.", err);
       }
     }
   }
@@ -2096,7 +2302,7 @@ function loadWordLabelsFromStorage() {
 
     wordLabelsMap.value = map;
   } catch (err) {
-    console.warn("读取词表失败:", err);
+    console.warn("Failed to load word list:", err);
     wordLabelsMap.value = new Map();
   }
 }
@@ -2148,7 +2354,7 @@ async function tryLoadWordLabelsFromLocalIfNeeded() {
     applyWordLabels(parsed, FIXED_WORD_LABELS_FILE_NAME);
     return true;
   } catch (err) {
-    console.warn("读取本地词表失败:", err);
+    console.warn("Failed to load local word list:", err);
     return false;
   }
 }
@@ -2185,7 +2391,7 @@ function loadMasteredWordsFromStorage() {
 
     masteredWords.value = normalized;
   } catch (err) {
-    console.warn("读取掌握单词失败:", err);
+    console.warn("Failed to load mastered words:", err);
     masteredWords.value = {};
   }
 }
@@ -2227,26 +2433,353 @@ function getWordLabel(word) {
 
 function getWordTags(word) {
   const label = getWordLabel(word);
-  if (label === "3000") return ["常用3000"];
-  if (label === "5000") return ["常用5000"];
-  if (label === "10000") return ["常用10000"];
-  return ["常用10000+"];
+  if (label === "3000") return [WORD_TAG_TOP_3000];
+  if (label === "5000") return [WORD_TAG_TOP_5000];
+  if (label === "10000") return [WORD_TAG_TOP_10000];
+  return [WORD_TAG_10000_PLUS];
 }
 
-function analyzeSubtitleLines(lines) {
-  const wordCounter = new Map();
+function buildNormalizedTranscriptLemmaLines(lines) {
   const transcriptWordSet = new Set();
-  const normalizedLineWords = lines.map((line) => {
+  const extractedLines = lines.map((line) => {
     const words = extractWordsFromText(line.text || "");
     words.forEach((word) => transcriptWordSet.add(word));
     return words;
   });
 
+  return extractedLines.map((words) =>
+    words
+      .map((rawWord) => simpleLemmatize(rawWord, transcriptWordSet))
+      .filter(Boolean)
+  );
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundMetric(value, digits = 1) {
+  const normalized = Number(value || 0);
+  if (!Number.isFinite(normalized)) {
+    return 0;
+  }
+  return Number(normalized.toFixed(digits));
+}
+
+function formatMetricPercent(value, digits = 1) {
+  return `${roundMetric(value, digits)}%`;
+}
+
+function normalizeScore(value, min, max) {
+  if (max <= min) {
+    return 0;
+  }
+  return clampNumber(((value - min) / (max - min)) * 100, 0, 100);
+}
+
+function describeDifficultyLevel(score) {
+  if (score < 25) return { key: "easy", label: "Easy" };
+  if (score < 50) return { key: "medium", label: "Moderate" };
+  if (score < 75) return { key: "hard", label: "Hard" };
+  return { key: "very-hard", label: "Very Hard" };
+}
+
+function getDifficultyBadgeClass(levelKey) {
+  return `difficulty-badge difficulty-badge-${levelKey}`;
+}
+
+function buildObjectiveDifficultyDescription({
+  uniquePerThousand,
+  offListUniqueRatioPct,
+  avgLineLength,
+}) {
+  const reasons = [];
+
+  if (uniquePerThousand >= 320) reasons.push("fast-changing vocabulary");
+  if (offListUniqueRatioPct >= 15) reasons.push("many off-list words");
+  if (avgLineLength >= 9) reasons.push("longer sentences");
+
+  if (!reasons.length) {
+    return "Vocabulary density and sentence length are both fairly steady.";
+  }
+
+  return `${reasons.join(", ")}.`;
+}
+
+function buildPersonalDifficultyDescription({
+  knownCoveragePct,
+  linesWithUnknownRatioPct,
+  challengingLineRatioPct,
+}) {
+  if (knownCoveragePct >= 97 && challengingLineRatioPct <= 10) {
+    return "You can follow most of the material smoothly.";
+  }
+  if (knownCoveragePct >= 93 && challengingLineRatioPct <= 25) {
+    return "It is mostly understandable, but some new words and hard lines will still slow you down.";
+  }
+  if (knownCoveragePct >= 88) {
+    return "You will need more pauses or replays, but it is still workable.";
+  }
+  if (linesWithUnknownRatioPct >= 70) {
+    return "Most lines contain unknown words, so the comprehension load is high.";
+  }
+  return "This is difficult for your current stage, so previewing key words first will help.";
+}
+
+function buildIPlusOneAssessment({
+  knownCoveragePct,
+  unknownTokenRatioPct,
+  challengingLineRatioPct,
+}) {
+  if (knownCoveragePct >= 98.5 && challengingLineRatioPct <= 8) {
+    return {
+      key: "easy",
+      label: "Too Easy",
+      description: "This feels more like review or extensive listening than strict i+1 input.",
+      recommendation: "If you want stronger growth input, switch to a less familiar topic.",
+    };
+  }
+
+  if (knownCoveragePct >= 95 && unknownTokenRatioPct <= 6 && challengingLineRatioPct <= 22) {
+    return {
+      key: "ideal",
+      label: "Near i+1",
+      description: "Most of it is understandable while still leaving room for a manageable amount of new vocabulary.",
+      recommendation: "Good for focused listening, shadowing, or repeated exposure.",
+    };
+  }
+
+  if (knownCoveragePct >= 90 && unknownTokenRatioPct <= 12 && challengingLineRatioPct <= 40) {
+    return {
+      key: "stretch",
+      label: "Stretch",
+      description: "Still within reach, but you will need more pauses, replays, or lookups.",
+      recommendation: "Best used in short chunks instead of one long session.",
+    };
+  }
+
+  return {
+    key: "very-hard",
+    label: "Too Hard",
+    description: "This is beyond your current i+1 comfort zone, so brute-forcing it will be inefficient.",
+    recommendation: "Preview key words first, or switch to a more familiar domain.",
+  };
+}
+
+function buildDifficultyNarrative({ objective, personal, fit }) {
+  const objectiveHard = objective.score >= 60;
+  const objectiveEasy = objective.score <= 35;
+  const personalHard = personal.score >= 60;
+  const personalEasy = personal.score <= 35;
+
+  if (objectiveHard && personalEasy) {
+    return "The material is objectively difficult, but your coverage is already high, so it behaves like familiar content for you.";
+  }
+  if (objectiveEasy && personalHard) {
+    return "The material is not objectively very hard, but it is still hard for you, which suggests an unfamiliar domain.";
+  }
+  if (objectiveHard && personalHard) {
+    return "The material itself is lexically and structurally heavy, and it is also demanding for you. Break it into smaller chunks.";
+  }
+  if (objectiveEasy && personalEasy) {
+    return "This is easy both objectively and personally, so it is better for review, extensive listening, or fluency work.";
+  }
+  return fit.description;
+}
+
+function buildTranscriptDifficultyAssessment(lines) {
+  const normalizedLineWords = buildNormalizedTranscriptLemmaLines(lines);
+  const masteredSet = new Set(Object.keys(masteredWords.value));
+  const labelUniqueSets = {
+    "3000": new Set(),
+    "5000": new Set(),
+    "10000": new Set(),
+    "10000+": new Set(),
+  };
+
+  const uniqueWords = new Set();
+  let totalTokens = 0;
+  let knownTokens = 0;
+  let unknownTokens = 0;
+  let sentenceCount = 0;
+  let linesWithUnknown = 0;
+  let challengingLines = 0;
+  let idealIPlusOneLines = 0;
+
+  normalizedLineWords.forEach((words) => {
+    if (!words.length) {
+      return;
+    }
+
+    sentenceCount++;
+    let lineUnknownCount = 0;
+
+    words.forEach((word) => {
+      totalTokens++;
+      uniqueWords.add(word);
+      labelUniqueSets[getWordLabel(word)].add(word);
+
+      if (masteredSet.has(word)) {
+        knownTokens++;
+      } else {
+        unknownTokens++;
+        lineUnknownCount++;
+      }
+    });
+
+    const unknownRatio = lineUnknownCount / words.length;
+    if (lineUnknownCount > 0) {
+      linesWithUnknown++;
+    }
+    if (lineUnknownCount >= 2 && unknownRatio >= 0.2) {
+      challengingLines++;
+    }
+    if (lineUnknownCount > 0 && unknownRatio <= 0.1) {
+      idealIPlusOneLines++;
+    }
+  });
+
+  const uniqueCount = uniqueWords.size;
+  if (!totalTokens || !uniqueCount || !sentenceCount) {
+    return null;
+  }
+
+  const unknownUniqueCount = Array.from(uniqueWords).filter((word) => !masteredSet.has(word)).length;
+  const uniquePerThousand = (uniqueCount / totalTokens) * 1000;
+  const avgLineLength = totalTokens / sentenceCount;
+  const offListUniqueRatio = labelUniqueSets["10000+"].size / uniqueCount;
+  const knownCoverage = knownTokens / totalTokens;
+  const unknownTokenRatio = unknownTokens / totalTokens;
+  const unknownUniqueRatio = unknownUniqueCount / uniqueCount;
+  const linesWithUnknownRatio = linesWithUnknown / sentenceCount;
+  const challengingLineRatio = challengingLines / sentenceCount;
+  const idealIPlusOneLineRatio = idealIPlusOneLines / sentenceCount;
+
+  const uniquePerThousandScore = normalizeScore(uniquePerThousand, 180, 360);
+  const offListRatioScore = normalizeScore(offListUniqueRatio * 100, 2, 22);
+  const sentenceLengthScore = normalizeScore(avgLineLength, 4.5, 12);
+  const objectiveScore = roundMetric(
+    uniquePerThousandScore * 0.45 +
+      offListRatioScore * 0.35 +
+      sentenceLengthScore * 0.2,
+    0
+  );
+
+  const unknownTokenScore = normalizeScore(unknownTokenRatio * 100, 1.5, 12);
+  const unknownUniqueScore = normalizeScore(unknownUniqueRatio * 100, 5, 45);
+  const challengingLineScore = normalizeScore(challengingLineRatio * 100, 5, 35);
+  const personalScore = roundMetric(
+    unknownTokenScore * 0.5 +
+      unknownUniqueScore * 0.25 +
+      challengingLineScore * 0.25,
+    0
+  );
+
+  const objectiveLevel = describeDifficultyLevel(objectiveScore);
+  const personalLevel = describeDifficultyLevel(personalScore);
+
+  const knownCoveragePct = roundMetric(knownCoverage * 100, 1);
+  const unknownTokenRatioPct = roundMetric(unknownTokenRatio * 100, 1);
+  const unknownUniqueRatioPct = roundMetric(unknownUniqueRatio * 100, 1);
+  const linesWithUnknownRatioPct = roundMetric(linesWithUnknownRatio * 100, 1);
+  const challengingLineRatioPct = roundMetric(challengingLineRatio * 100, 1);
+  const idealIPlusOneLineRatioPct = roundMetric(idealIPlusOneLineRatio * 100, 1);
+  const offListUniqueRatioPct = roundMetric(offListUniqueRatio * 100, 1);
+
+  const objective = {
+    score: objectiveScore,
+    label: objectiveLevel.label,
+    levelKey: objectiveLevel.key,
+    description: buildObjectiveDifficultyDescription({
+      uniquePerThousand: roundMetric(uniquePerThousand, 1),
+      offListUniqueRatioPct,
+      avgLineLength: roundMetric(avgLineLength, 1),
+    }),
+    metrics: [
+      {
+        label: "Unique Words per 1,000 Tokens",
+        value: roundMetric(uniquePerThousand, 1),
+        suffix: "",
+        hint: "Higher means the vocabulary changes more quickly and you cannot rely on repetition as much.",
+      },
+      {
+        label: "10000+ Unique Word Share",
+        value: formatMetricPercent(offListUniqueRatioPct),
+        hint: "Higher means more vocabulary sits outside the most common high-frequency bands.",
+      },
+      {
+        label: "Average Words per Line",
+        value: roundMetric(avgLineLength, 1),
+        suffix: " words",
+        hint: "Higher means each subtitle line carries more processing load.",
+      },
+    ],
+  };
+
+  const personal = {
+    score: personalScore,
+    label: personalLevel.label,
+    levelKey: personalLevel.key,
+    description: buildPersonalDifficultyDescription({
+      knownCoveragePct,
+      linesWithUnknownRatioPct,
+      challengingLineRatioPct,
+    }),
+    metrics: [
+      {
+        label: "Mastered Token Coverage",
+        value: formatMetricPercent(knownCoveragePct),
+        hint: "The share of all word tokens in this material that you have already mastered.",
+      },
+      {
+        label: "Unmastered Unique Word Share",
+        value: formatMetricPercent(unknownUniqueRatioPct),
+        hint: "Higher means the material contains more domain vocabulary you have not mastered yet.",
+      },
+      {
+        label: "Lines with Unknown Words",
+        value: formatMetricPercent(linesWithUnknownRatioPct),
+        hint: "The percentage of subtitle lines that contain at least one unmastered word.",
+      },
+      {
+        label: "High-Pressure Lines",
+        value: formatMetricPercent(challengingLineRatioPct),
+        hint: "Lines where unknown words are at least 20% of the line and there are at least two of them.",
+      },
+      {
+        label: "Light i+1 Lines",
+        value: formatMetricPercent(idealIPlusOneLineRatioPct),
+        hint: "Lines that contain some new vocabulary, but where unknown words stay at or below 10%.",
+      },
+    ],
+  };
+
+  const fit = buildIPlusOneAssessment({
+    knownCoveragePct,
+    unknownTokenRatioPct,
+    challengingLineRatioPct,
+  });
+
+  return {
+    sampleLabel: `${sentenceCount} lines · ${totalTokens} tokens`,
+    summary: buildDifficultyNarrative({ objective, personal, fit }),
+    objective,
+    personal,
+    fit: {
+      ...fit,
+      supportingValue: `${formatMetricPercent(knownCoveragePct)} coverage`,
+      secondaryValue: `${formatMetricPercent(unknownTokenRatioPct)} unknown tokens`,
+    },
+  };
+}
+
+function analyzeSubtitleLines(lines) {
+  const wordCounter = new Map();
+  const normalizedLineWords = buildNormalizedTranscriptLemmaLines(lines);
+
   for (const words of normalizedLineWords) {
-    for (const rawWord of words) {
-      const lemma = simpleLemmatize(rawWord, transcriptWordSet);
-      if (!lemma) continue;
-      wordCounter.set(lemma, (wordCounter.get(lemma) || 0) + 1);
+    for (const word of words) {
+      wordCounter.set(word, (wordCounter.get(word) || 0) + 1);
     }
   }
 
@@ -2376,7 +2909,7 @@ async function renderCharts(statsData) {
       trigger: "axis",
       formatter: (params) => {
         const data = params[0];
-        return `${data.name}<br/>累积掌握：${data.value} 个单词`;
+        return `${data.name}<br/>Cumulative mastered: ${data.value} words`;
       },
     },
     xAxis: {
@@ -2386,7 +2919,7 @@ async function renderCharts(statsData) {
     },
     yAxis: {
       type: "value",
-      name: "累积词汇数量",
+      name: "Cumulative Words",
       min: yAxisMin,
       axisLabel: {
         formatter: "{value}",
@@ -2394,7 +2927,7 @@ async function renderCharts(statsData) {
     },
     series: [
       {
-        name: "累积掌握词汇",
+        name: "Cumulative Mastered Words",
         type: "line",
         data: cumulative,
         smooth: true,
@@ -2438,7 +2971,7 @@ async function renderCharts(statsData) {
       trigger: "axis",
       formatter: (params) => {
         const data = params[0];
-        return `${data.name}<br/>每日新增：${data.value} 个单词`;
+        return `${data.name}<br/>New today: ${data.value} words`;
       },
     },
     xAxis: {
@@ -2448,7 +2981,7 @@ async function renderCharts(statsData) {
     },
     yAxis: {
       type: "value",
-      name: "每日新增数量",
+      name: "New Words",
       min: 0,
       axisLabel: {
         formatter: "{value}",
@@ -2456,7 +2989,7 @@ async function renderCharts(statsData) {
     },
     series: [
       {
-        name: "每日新增",
+        name: "New Words per Day",
         type: "line",
         data: newWords,
         smooth: true,
@@ -2516,7 +3049,7 @@ async function importLearningDataFromFile(file) {
   const text = await readFileAsText(file);
   const lowerName = (file.name || "").toLowerCase();
   if (!lowerName.endsWith(".csv")) {
-    throw new Error("仅支持 CSV 文件");
+    throw new Error("Only CSV files are supported.");
   }
 
   const parsedLearningData = parseLearningDataCsv(text);
@@ -2536,7 +3069,7 @@ async function importLearningDataFromFile(file) {
     refreshTedMasteredFlags();
     await loadLearningProgress();
     ensureSetupModalState();
-    return "学习数据 CSV 导入成功";
+    return "Learning data CSV imported successfully.";
   }
 
   masteredWords.value = parseMasteredWordsCsv(text);
@@ -2545,20 +3078,20 @@ async function importLearningDataFromFile(file) {
   refreshTedMasteredFlags();
   await loadLearningProgress();
   ensureSetupModalState();
-  return "学习数据 CSV 导入成功";
+  return "Learning data CSV imported successfully.";
 }
 
 async function importWordLabelsFromFile(file) {
   const text = await readFileAsText(file);
   const parsed = parseWordLabelsCsv(text);
   if (!parsed.size) {
-    throw new Error("词表为空或格式错误");
+    throw new Error("The word list is empty or malformed.");
   }
 
   applyWordLabels(parsed, FIXED_WORD_LABELS_FILE_NAME);
   await loadLearningProgress();
   ensureSetupModalState();
-  return `词表导入成功，共 ${parsed.size} 个单词`;
+  return `Word list imported successfully with ${parsed.size} words.`;
 }
 
 async function handleImportLearningData(event) {
@@ -2569,7 +3102,7 @@ async function handleImportLearningData(event) {
     const successText = await importLearningDataFromFile(file);
     message.success(successText);
   } catch (err) {
-    message.error(`导入失败: ${err.message || err}`);
+    message.error(`Import failed: ${err.message || err}`);
   } finally {
     if (event?.target) {
       event.target.value = "";
@@ -2585,7 +3118,7 @@ async function handleWordLabelsUpload(event) {
     const successText = await importWordLabelsFromFile(file);
     message.success(successText);
   } catch (err) {
-    message.error(`词表导入失败: ${err.message || err}`);
+    message.error(`Word list import failed: ${err.message || err}`);
   } finally {
     if (event?.target) {
       event.target.value = "";
@@ -2602,7 +3135,7 @@ async function handleSetupWordLabelsFileChange(event) {
     const successText = await importWordLabelsFromFile(file);
     message.success(successText);
   } catch (err) {
-    message.error(`词表导入失败: ${err.message || err}`);
+    message.error(`Word list import failed: ${err.message || err}`);
   } finally {
     if (event?.target) {
       event.target.value = "";
@@ -2619,7 +3152,7 @@ async function handleSetupLearningDataFileChange(event) {
     const successText = await importLearningDataFromFile(file);
     message.success(successText);
   } catch (err) {
-    message.error(`学习数据导入失败: ${err.message || err}`);
+    message.error(`Learning data import failed: ${err.message || err}`);
   } finally {
     if (event?.target) {
       event.target.value = "";
@@ -2629,7 +3162,7 @@ async function handleSetupLearningDataFileChange(event) {
 
 function closeSetupModal() {
   if (!isDataSetupReady.value) {
-    message.warning("请先导入词表和学习数据文件");
+    message.warning("Import the word list and learning data first.");
     return;
   }
   setupDataModalOpen.value = false;
@@ -2644,12 +3177,12 @@ function getWordsByLabel(label) {
 
 async function showUnmasteredWords(label, progress) {
   if (label === FALLBACK_WORD_LABEL) {
-    message.info("10000+ 为默认标签，暂无完整词表，暂不支持未学习单词列表");
+    message.info("10000+ is a fallback label, so a full unmastered-word list is not available for it yet.");
     return;
   }
 
   if (progress.mastered >= progress.total) {
-    message.info("所有单词都已掌握！");
+    message.info("All words are already mastered.");
     return;
   }
 
@@ -2696,14 +3229,14 @@ async function markWordMastered(word) {
   }
 
   await loadLearningProgress();
-  message.success("已标记为烂熟于心");
+  message.success("Marked as mastered.");
 }
 
 async function unmarkWordMastered(word) {
   applyWordMasteredStatus(word, false);
   refreshTedMasteredFlags();
   await loadLearningProgress();
-  message.success("已取消标记");
+  message.success("Mastered mark removed.");
 }
 
 function handleTedTableChange(pag) {
@@ -2732,7 +3265,7 @@ function markTedCurrentPageMastered() {
   const initialWords = currentPageData.filter((item) => !item.mastered);
 
   if (initialWords.length === 0) {
-    message.info("当前页没有未标记的单词");
+    message.info("There are no unmarked words on this page.");
     return;
   }
 
@@ -2742,9 +3275,9 @@ function markTedCurrentPageMastered() {
   const createContent = () => {
     return h("div", [
       h("p", { style: "margin-bottom: 12px" }, [
-        "将要标记 ",
+        "You are about to mark ",
         h("strong", { style: "color: #1890ff" }, wordsToMark.value.length),
-        " 个单词：",
+        " words:",
       ]),
       h(
         "div",
@@ -2757,7 +3290,7 @@ function markTedCurrentPageMastered() {
             ? h(
                 "p",
                 { style: "color: #999; text-align: center; padding: 20px" },
-                "已移除所有单词"
+                "All words removed"
               )
             : h(
                 "div",
@@ -2792,11 +3325,11 @@ function markTedCurrentPageMastered() {
                               if (modalInstance) {
                                 Modal.destroyAll();
                                 modalInstance = Modal.confirm({
-                                  title: "确认标记为烂熟于心",
+                                  title: "Confirm Mark as Mastered",
                                   width: 500,
                                   content: createContent(),
-                                  okText: "确认标记",
-                                  cancelText: "取消",
+                                  okText: "Confirm",
+                                  cancelText: "Cancel",
                                   onOk: handleOk,
                                 });
                               }
@@ -2816,7 +3349,7 @@ function markTedCurrentPageMastered() {
 
   const handleOk = async () => {
     if (wordsToMark.value.length === 0) {
-      message.info("没有要标记的单词");
+      message.info("There are no words to mark.");
       return;
     }
 
@@ -2826,15 +3359,15 @@ function markTedCurrentPageMastered() {
 
     refreshTedMasteredFlags();
     await loadLearningProgress();
-    message.success(`成功标记 ${wordsToMark.value.length} 个单词为烂熟于心`);
+    message.success(`Marked ${wordsToMark.value.length} words as mastered.`);
   };
 
   modalInstance = Modal.confirm({
-    title: "确认标记为烂熟于心",
+    title: "Confirm Mark as Mastered",
     width: 500,
     content: createContent(),
-    okText: "确认标记",
-    cancelText: "取消",
+    okText: "Confirm",
+    cancelText: "Cancel",
     onOk: handleOk,
   });
 }
@@ -2864,11 +3397,11 @@ function handleTedSubtitleFileChange(event) {
 async function parseHomeVideo() {
   const url = normalizeYoutubeUrl(homeYoutubeUrl.value);
   if (!url) {
-    homeError.value = "请输入YouTube链接";
+    homeError.value = "Enter a YouTube URL.";
     return;
   }
   if (!homeSubtitleFile.value) {
-    homeError.value = "请先选择本地字幕文件";
+    homeError.value = "Choose a local subtitle file first.";
     return;
   }
 
@@ -2884,7 +3417,7 @@ async function parseHomeVideo() {
   try {
     const videoId = extractYoutubeVideoId(url);
     const lines = await parseSubtitleFile(homeSubtitleFile.value);
-    const fallbackTitle = `YouTube 视频 (${videoId})`;
+    const fallbackTitle = `YouTube Video (${videoId})`;
     let resolvedTitle = fallbackTitle;
     if (ENABLE_YOUTUBE_OEMBED_TITLE_FETCH) {
       try {
@@ -2893,7 +3426,7 @@ async function parseHomeVideo() {
           resolvedTitle = fetchedTitle;
         }
       } catch (titleErr) {
-        console.warn("读取YouTube标题失败，使用默认标题:", titleErr);
+        console.warn("Failed to fetch YouTube title. Using fallback title.", titleErr);
       }
     }
 
@@ -2905,7 +3438,7 @@ async function parseHomeVideo() {
     homeSubtitleOptions.value = [
       {
         language_code: "local",
-        language: `本地字幕 · ${homeSubtitleFileName.value || "未命名"}`,
+        language: `Local subtitles · ${homeSubtitleFileName.value || "Untitled"}`,
       },
     ];
     homeSelectedSubtitle.value = "local";
@@ -2919,10 +3452,10 @@ async function parseHomeVideo() {
       subtitleLines: lines,
     });
 
-    message.success(`解析成功，共 ${lines.length} 句字幕`);
+    message.success(`Parsed successfully: ${lines.length} subtitle lines.`);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    homeError.value = `解析失败: ${errorMsg}`;
+    homeError.value = `Parse failed: ${errorMsg}`;
   } finally {
     homeParseLoading.value = false;
   }
@@ -2930,6 +3463,17 @@ async function parseHomeVideo() {
 
 async function startLearningFromHome() {
   if (!homeCanStartLearning.value) return;
+
+  if (
+    canReuseExistingPlayerSession({
+      youtubeUrl: homeParsedUrl.value,
+      videoId: homeParsedVideoId.value,
+      subtitleLines: homeParsedLines.value,
+    })
+  ) {
+    reopenExistingPlayerPage();
+    return;
+  }
 
   playerParsedYoutubeUrl.value = homeParsedUrl.value;
   playerYoutubeUrl.value = homeParsedUrl.value;
@@ -2945,6 +3489,18 @@ async function startLearningFromHome() {
 
 async function startLearningFromHistory(item) {
   if (!item || !item.url) return;
+
+  if (
+    canReuseExistingPlayerSession({
+      youtubeUrl: item.url,
+      videoId: item.videoId || "",
+      subtitleLines: Array.isArray(item.subtitleLines) ? item.subtitleLines : [],
+    })
+  ) {
+    homeYoutubeUrl.value = item.url;
+    reopenExistingPlayerPage();
+    return;
+  }
 
   homeYoutubeUrl.value = item.url;
   await parseAndLoadPlayerVideo(item.url, {
@@ -3010,7 +3566,7 @@ function removeSelectedHistoryVideos() {
     (item) => !selectedSet.has(item.id)
   );
   savePlayerHistory();
-  message.success(`已删除 ${selectedSet.size} 个视频`);
+  message.success(`Deleted ${selectedSet.size} videos.`);
   homeSelectedHistoryIds.value = [];
   if (!playerHistoryVideos.value.length) {
     homeHistorySelectionMode.value = false;
@@ -3056,7 +3612,7 @@ function loadPlayerHistory() {
     homeSelectedHistoryIds.value = [];
     homeHistorySelectionMode.value = false;
   } catch (err) {
-    console.warn("读取播放器历史失败:", err);
+    console.warn("Failed to load player history:", err);
     playerHistoryVideos.value = [];
     homeHistorySelectionMode.value = false;
     homeSelectedHistoryIds.value = [];
@@ -3070,8 +3626,8 @@ function savePlayerHistory() {
       JSON.stringify(playerHistoryVideos.value)
     );
   } catch (err) {
-    console.warn("保存播放器历史失败:", err);
-    message.warning("历史记录过大，已尝试仅保存最近记录");
+    console.warn("Failed to save player history:", err);
+    message.warning("History is too large. Saving only recent items instead.");
 
     playerHistoryVideos.value = playerHistoryVideos.value.slice(0, 10).map((item) => ({
       ...item,
@@ -3084,7 +3640,7 @@ function savePlayerHistory() {
         JSON.stringify(playerHistoryVideos.value)
       );
     } catch (innerErr) {
-      console.warn("降级后仍无法保存历史:", innerErr);
+      console.warn("Failed to save history even after fallback:", innerErr);
     }
   }
 }
@@ -3138,11 +3694,11 @@ function upsertPlayerHistory({
 async function loadYoutubeSubtitles() {
   const url = normalizeYoutubeUrl(youtubeUrl.value);
   if (!url) {
-    tedError.value = "请输入YouTube链接";
+    tedError.value = "Enter a YouTube URL.";
     return;
   }
   if (!tedSubtitleFile.value) {
-    tedError.value = "请先选择本地字幕文件";
+    tedError.value = "Choose a local subtitle file first.";
     return;
   }
 
@@ -3159,20 +3715,20 @@ async function loadYoutubeSubtitles() {
     const lines = await parseSubtitleFile(tedSubtitleFile.value);
 
     parsedYoutubeUrl.value = url;
-    youtubeVideoTitle.value = `YouTube 视频 (${videoId})`;
+    youtubeVideoTitle.value = `YouTube Video (${videoId})`;
     tedSubtitleLines.value = lines;
     youtubeSubtitles.value = [
       {
         language_code: "local",
-        language: `本地字幕 · ${tedSubtitleFileName.value || "未命名"}`,
+        language: `Local subtitles · ${tedSubtitleFileName.value || "Untitled"}`,
       },
     ];
     selectedYoutubeSubtitle.value = "local";
 
-    message.success(`字幕解析成功，共 ${lines.length} 句`);
+    message.success(`Subtitles parsed successfully: ${lines.length} lines.`);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    tedError.value = `解析字幕失败: ${errorMsg}`;
+    tedError.value = `Subtitle parsing failed: ${errorMsg}`;
   } finally {
     youtubeLoading.value = false;
   }
@@ -3198,7 +3754,7 @@ async function analyzeTedFile() {
     tedPagination.value.current = 1;
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    tedError.value = `解析失败: ${errorMsg}`;
+    tedError.value = `Analysis failed: ${errorMsg}`;
   } finally {
     tedLoading.value = false;
   }
@@ -3213,6 +3769,70 @@ function clearAbSelection() {
 
 function clearPinnedSubtitleIndex() {
   playerPinnedSubtitleIndex.value = -1;
+}
+
+function formatPlaybackRateLabel(rate) {
+  const normalized = Number(rate || 1);
+  return `${Number.isInteger(normalized) ? normalized.toFixed(0) : normalized}x`;
+}
+
+function normalizePlaybackRates(rates) {
+  if (!Array.isArray(rates)) {
+    return PLAYER_PLAYBACK_RATES.slice();
+  }
+
+  const normalized = rates
+    .map((rate) => Number(rate))
+    .filter((rate) => Number.isFinite(rate) && rate > 0);
+
+  return normalized.length ? normalized : PLAYER_PLAYBACK_RATES.slice();
+}
+
+function syncPlayerPlaybackRateInfo() {
+  if (!englishPlayerInstance) {
+    return;
+  }
+
+  if (typeof englishPlayerInstance.getAvailablePlaybackRates === "function") {
+    playerAvailablePlaybackRates.value = normalizePlaybackRates(
+      englishPlayerInstance.getAvailablePlaybackRates()
+    );
+  }
+
+  if (typeof englishPlayerInstance.getPlaybackRate === "function") {
+    const currentRate = Number(englishPlayerInstance.getPlaybackRate());
+    if (Number.isFinite(currentRate) && currentRate > 0) {
+      playerPlaybackRate.value = currentRate;
+    }
+  }
+}
+
+function isPlaybackRateAvailable(rate) {
+  return playerAvailablePlaybackRates.value.includes(Number(rate));
+}
+
+function applyPreferredPlaybackRate() {
+  if (
+    !englishPlayerInstance ||
+    typeof englishPlayerInstance.setPlaybackRate !== "function"
+  ) {
+    return;
+  }
+
+  const preferredRate = Number(playerPlaybackRate.value || 1);
+  const availableRates = playerAvailablePlaybackRates.value;
+  const nextRate = availableRates.includes(preferredRate)
+    ? preferredRate
+    : availableRates.includes(1)
+      ? 1
+      : availableRates[0];
+
+  if (!Number.isFinite(nextRate) || nextRate <= 0) {
+    return;
+  }
+
+  englishPlayerInstance.setPlaybackRate(nextRate);
+  playerPlaybackRate.value = nextRate;
 }
 
 function isIndexInAbRange(index) {
@@ -3283,7 +3903,7 @@ async function waitForPlayerReady(timeoutMs = 12000) {
       playerIframeReady.value = true;
       return true;
     }
-    if (playerInitError.value.startsWith("YouTube 播放器错误码")) {
+    if (playerInitError.value.startsWith("YouTube player error code")) {
       return false;
     }
     await new Promise((resolve) => window.setTimeout(resolve, 100));
@@ -3298,7 +3918,7 @@ async function ensurePlayerReady() {
   }
 
   if (!playerVideoId.value) {
-    playerInitError.value = "缺少视频 ID";
+    playerInitError.value = "Missing video ID.";
     return false;
   }
 
@@ -3307,14 +3927,15 @@ async function ensurePlayerReady() {
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     playerInitError.value = errorMsg;
-    playerError.value = `播放器初始化失败: ${errorMsg}`;
+    playerError.value = `Player initialization failed: ${errorMsg}`;
     return false;
   }
 
   if (!hasPlayablePlayerInstance()) {
     const ready = await waitForPlayerReady(5000);
     if (!ready) {
-      playerInitError.value = playerInitError.value || "播放器实例未完成创建";
+      playerInitError.value =
+        playerInitError.value || "The player instance was not created successfully.";
     }
   }
   return hasPlayablePlayerInstance();
@@ -3333,8 +3954,8 @@ async function seekAndPlay(seconds) {
   if (!ready || !englishPlayerInstance) {
     message.warning(
       playerInitError.value
-        ? `播放器尚未准备好：${playerInitError.value}`
-        : "播放器尚未准备好"
+        ? `Player not ready: ${playerInitError.value}`
+        : "Player not ready"
     );
     return false;
   }
@@ -3395,8 +4016,8 @@ async function playSequentialFromCurrentPosition() {
   if (!ready || !englishPlayerInstance || typeof englishPlayerInstance.playVideo !== "function") {
     message.warning(
       playerInitError.value
-        ? `播放器尚未准备好：${playerInitError.value}`
-        : "播放器尚未准备好"
+        ? `Player not ready: ${playerInitError.value}`
+        : "Player not ready"
     );
     return;
   }
@@ -3408,7 +4029,7 @@ async function playSequentialFromCurrentPosition() {
 
 async function playAbRange() {
   if (!canPlayAbRange.value) {
-    message.info("请先在字幕中设置 A 和 B");
+    message.info("Set A and B in the subtitles first.");
     return;
   }
 
@@ -3426,6 +4047,36 @@ async function playAbRange() {
     start: Number(startLine.start || 0),
     end: Math.max(Number(endLine.end || 0), Number(startLine.start || 0) + 0.3),
   };
+}
+
+function hasPausedAbPlaybackTarget() {
+  return playerPlaybackTarget.value?.mode === "ab";
+}
+
+function resumeAbRangePlayback() {
+  const target = playerPlaybackTarget.value;
+  if (
+    target?.mode !== "ab" ||
+    !englishPlayerInstance ||
+    typeof englishPlayerInstance.playVideo !== "function"
+  ) {
+    return false;
+  }
+
+  const resumeThreshold = Number(target.end || 0) - SINGLE_LINE_STOP_BUFFER;
+  if (
+    typeof englishPlayerInstance.getCurrentTime === "function" &&
+    typeof englishPlayerInstance.seekTo === "function"
+  ) {
+    const currentTime = Number(englishPlayerInstance.getCurrentTime());
+    if (!Number.isNaN(currentTime) && currentTime >= resumeThreshold) {
+      englishPlayerInstance.seekTo(Number(target.start || 0), true);
+      playerCurrentTime.value = Number(target.start || 0);
+    }
+  }
+
+  englishPlayerInstance.playVideo();
+  return true;
 }
 
 function buildAbRangeSubtitleText() {
@@ -3477,13 +4128,13 @@ async function writeClipboardText(text) {
 
 async function copyAbSubtitleRange() {
   if (!canPlayAbRange.value) {
-    message.info("请先选择两句字幕作为 A 和 B");
+    message.info("Select two subtitle lines as A and B first.");
     return;
   }
 
   const mergedText = buildAbRangeSubtitleText();
   if (!mergedText) {
-    message.warning("选中片段没有可复制的字幕文本");
+    message.warning("The selected AB range has no text to copy.");
     return;
   }
 
@@ -3492,9 +4143,9 @@ async function copyAbSubtitleRange() {
     if (!copied) {
       throw new Error("copy_failed");
     }
-    message.success("已复制 AB 区间字幕（单行文本）");
+    message.success("Copied the AB subtitle range as one line.");
   } catch {
-    message.error("复制失败，请检查浏览器剪贴板权限");
+    message.error("Copy failed. Check browser clipboard permissions.");
   }
 }
 
@@ -3508,13 +4159,13 @@ function toggleAbSelectionMode() {
   if (playerAbSelectionMode.value) {
     clearAbSelection();
     playerPlaybackTarget.value = null;
-    message.info("已退出 AB 模式");
+    message.info("Exited AB mode.");
     return;
   }
 
   clearAbSelection();
   playerAbSelectionMode.value = true;
-  message.info("请选择两句字幕作为 A / B");
+  message.info("Select two subtitle lines for A / B.");
 }
 
 function toggleAbCandidate(index) {
@@ -3560,13 +4211,64 @@ async function playNextSubtitle() {
   if (line) await playSingleLine(line, targetIndex);
 }
 
+async function jumpToTranscriptStart() {
+  if (!playerTranscriptLines.value.length) return;
+
+  const firstLine = playerTranscriptLines.value[0];
+  if (!firstLine) return;
+
+  clearPinnedSubtitleIndex();
+  playerPlaybackTarget.value = null;
+  await seekAndPlay(firstLine.start);
+}
+
+async function jumpToTranscriptEnd() {
+  if (!playerTranscriptLines.value.length) return;
+
+  const lastLine = playerTranscriptLines.value[playerTranscriptLines.value.length - 1];
+  if (!lastLine) return;
+
+  clearPinnedSubtitleIndex();
+  playerPlaybackTarget.value = null;
+  await seekAndPlay(lastLine.start);
+}
+
+function setPlayerPlaybackRate(rate) {
+  const nextRate = Number(rate);
+  if (!Number.isFinite(nextRate) || nextRate <= 0) {
+    return;
+  }
+
+  if (!isPlaybackRateAvailable(nextRate)) {
+    message.info(`This video does not support ${formatPlaybackRateLabel(nextRate)}.`);
+    return;
+  }
+
+  playerPlaybackRate.value = nextRate;
+  if (
+    !englishPlayerInstance ||
+    typeof englishPlayerInstance.setPlaybackRate !== "function"
+  ) {
+    return;
+  }
+
+  englishPlayerInstance.setPlaybackRate(nextRate);
+  syncPlayerPlaybackRateInfo();
+}
+
 async function togglePlayerPlayPause() {
   if (hasPlayerApiMethods() && englishPlayerInstance) {
     if (playerIsPlaying.value) {
       if (typeof englishPlayerInstance.pauseVideo === "function") {
         englishPlayerInstance.pauseVideo();
       }
-      playerPlaybackTarget.value = null;
+      if (!hasPausedAbPlaybackTarget()) {
+        playerPlaybackTarget.value = null;
+      }
+      return;
+    }
+
+    if (resumeAbRangePlayback()) {
       return;
     }
 
@@ -3580,8 +4282,8 @@ async function togglePlayerPlayPause() {
   if (!ready || !englishPlayerInstance) {
     message.warning(
       playerInitError.value
-        ? `播放器尚未准备好：${playerInitError.value}`
-        : "播放器尚未准备好"
+        ? `Player not ready: ${playerInitError.value}`
+        : "Player not ready"
     );
     return;
   }
@@ -3590,7 +4292,13 @@ async function togglePlayerPlayPause() {
     if (typeof englishPlayerInstance.pauseVideo === "function") {
       englishPlayerInstance.pauseVideo();
     }
-    playerPlaybackTarget.value = null;
+    if (!hasPausedAbPlaybackTarget()) {
+      playerPlaybackTarget.value = null;
+    }
+    return;
+  }
+
+  if (resumeAbRangePlayback()) {
     return;
   }
 
@@ -3689,7 +4397,7 @@ async function loadYoutubeIframeApi() {
         try {
           previousReady();
         } catch (err) {
-          console.warn("onYouTubeIframeAPIReady 回调异常:", err);
+          console.warn("onYouTubeIframeAPIReady callback failed:", err);
         }
       }
       resolveIfReady();
@@ -3705,7 +4413,7 @@ async function loadYoutubeIframeApi() {
       script.async = true;
       script.onerror = () => {
         cleanup();
-        reject(new Error("无法加载 YouTube 播放器脚本"));
+        reject(new Error("Unable to load the YouTube player script."));
       };
       document.body.appendChild(script);
     }
@@ -3724,7 +4432,7 @@ async function loadYoutubeIframeApi() {
       if (staleScript) {
         staleScript.remove();
       }
-      reject(new Error("加载 YouTube 播放器超时，请稍后重试"));
+      reject(new Error("Loading the YouTube player timed out. Try again later."));
     }, 15000);
   }).catch((err) => {
     youtubeIframeApiPromise = null;
@@ -3775,6 +4483,28 @@ function destroyEnglishPlayer() {
   }
   englishPlayerInstance = null;
   playerIsPlaying.value = false;
+  playerAvailablePlaybackRates.value = PLAYER_PLAYBACK_RATES.slice();
+}
+
+function canReuseExistingPlayerSession(options = {}) {
+  if (playerTranscriptLoading.value || !playerVideoId.value || !playerTranscriptLines.value.length) {
+    return false;
+  }
+
+  const requestedVideoId =
+    String(options.videoId || "").trim() || extractYoutubeVideoIdSafe(options.youtubeUrl || "");
+  if (!requestedVideoId || requestedVideoId !== playerVideoId.value) {
+    return false;
+  }
+
+  const normalizedLines = normalizeSubtitleLines(
+    Array.isArray(options.subtitleLines) ? options.subtitleLines : []
+  );
+  if (!normalizedLines.length) {
+    return false;
+  }
+
+  return computeTranscriptHash(normalizedLines) === playerTranscriptHash.value;
 }
 
 async function mountEnglishPlayer(videoId) {
@@ -3790,7 +4520,7 @@ async function mountEnglishPlayer(videoId) {
 
     const playerRoot = await waitForPlayerRoot();
     if (!playerRoot) {
-      throw new Error("播放器容器未就绪");
+      throw new Error("The player container is not ready.");
     }
 
     if (englishPlayerInstance && typeof englishPlayerInstance.loadVideoById === "function") {
@@ -3799,8 +4529,12 @@ async function mountEnglishPlayer(videoId) {
       playerIsPlaying.value = false;
       const ready = await waitForPlayerReady();
       if (!ready) {
-        throw new Error(playerInitError.value || "等待播放器就绪超时");
+        throw new Error(
+          playerInitError.value || "Timed out while waiting for the player to become ready."
+        );
       }
+      syncPlayerPlaybackRateInfo();
+      applyPreferredPlaybackRate();
       startEnglishPlayerTimer();
       return;
     }
@@ -3823,27 +4557,39 @@ async function mountEnglishPlayer(videoId) {
           playerIframeReady.value = true;
           playerCurrentTime.value = 0;
           playerIsPlaying.value = false;
+          syncPlayerPlaybackRateInfo();
+          applyPreferredPlaybackRate();
         },
         onStateChange: (event) => {
           if (!window.YT || typeof window.YT.PlayerState === "undefined") {
             return;
           }
           playerIsPlaying.value = event.data === window.YT.PlayerState.PLAYING;
+          syncPlayerPlaybackRateInfo();
+        },
+        onPlaybackRateChange: (event) => {
+          const nextRate = Number(event?.data);
+          if (Number.isFinite(nextRate) && nextRate > 0) {
+            playerPlaybackRate.value = nextRate;
+          }
+          syncPlayerPlaybackRateInfo();
         },
         onError: (event) => {
           const code = event?.data;
-          playerInitError.value = `YouTube 播放器错误码 ${code}`;
+          playerInitError.value = `YouTube player error code ${code}`;
           console.warn("YouTube Player onError:", code);
         },
         onAutoplayBlocked: () => {
-          playerInitError.value = "浏览器拦截了自动播放，请先点一次视频画面";
+          playerInitError.value = "Autoplay was blocked by the browser. Click the video once first.";
         },
       },
     });
 
     const ready = await waitForPlayerReady();
     if (!ready) {
-      throw new Error(playerInitError.value || "等待播放器就绪超时");
+      throw new Error(
+        playerInitError.value || "Timed out while waiting for the player to become ready."
+      );
     }
     startEnglishPlayerTimer();
   })();
@@ -3858,7 +4604,26 @@ async function mountEnglishPlayer(videoId) {
 async function parseAndLoadPlayerVideo(url, options = {}) {
   const normalizedUrl = normalizeYoutubeUrl(url);
   if (!normalizedUrl) {
-    playerError.value = "请输入YouTube链接";
+    playerError.value = "Enter a YouTube URL.";
+    return;
+  }
+
+  if (
+    canReuseExistingPlayerSession({
+      youtubeUrl: normalizedUrl,
+      videoId: options.videoId || "",
+      subtitleLines: Array.isArray(options.subtitleLines) ? options.subtitleLines : [],
+    })
+  ) {
+    playerParsedYoutubeUrl.value = normalizedUrl;
+    playerYoutubeUrl.value = normalizedUrl;
+    if (options.title) {
+      playerVideoTitle.value = String(options.title || "").trim() || playerVideoTitle.value;
+    }
+    if (options.subtitleFileName) {
+      playerSubtitleFileName.value = options.subtitleFileName;
+    }
+    reopenExistingPlayerPage();
     return;
   }
 
@@ -3873,7 +4638,7 @@ async function parseAndLoadPlayerVideo(url, options = {}) {
 
   try {
     const videoId = extractYoutubeVideoId(normalizedUrl);
-    const fallbackTitle = String(options.title || "").trim() || `YouTube 视频 (${videoId})`;
+    const fallbackTitle = String(options.title || "").trim() || `YouTube Video (${videoId})`;
     let resolvedTitle = fallbackTitle;
     if (ENABLE_YOUTUBE_OEMBED_TITLE_FETCH && isGenericYoutubeTitle(resolvedTitle)) {
       try {
@@ -3882,7 +4647,7 @@ async function parseAndLoadPlayerVideo(url, options = {}) {
           resolvedTitle = fetchedTitle;
         }
       } catch (titleErr) {
-        console.warn("读取YouTube标题失败，使用默认标题:", titleErr);
+        console.warn("Failed to fetch YouTube title. Using fallback title.", titleErr);
       }
     }
 
@@ -3893,7 +4658,7 @@ async function parseAndLoadPlayerVideo(url, options = {}) {
     playerSubtitleOptions.value = [
       {
         language_code: "local",
-        language: `本地字幕 · ${options.subtitleFileName || "未命名"}`,
+        language: `Local subtitles · ${options.subtitleFileName || "Untitled"}`,
       },
     ];
     playerSelectedSubtitle.value = "local";
@@ -3917,7 +4682,7 @@ async function parseAndLoadPlayerVideo(url, options = {}) {
     }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    playerError.value = `解析播放器视频失败: ${errorMsg}`;
+    playerError.value = `Failed to parse player video: ${errorMsg}`;
   } finally {
     playerMetaLoading.value = false;
   }
@@ -3943,7 +4708,8 @@ async function loadPlayerTranscript() {
     await mountEnglishPlayer(playerVideoId.value);
 
     if (!lines.length) {
-      playerError.value = "当前视频未加载字幕，请先从首页选择字幕文件";
+      playerError.value =
+        "No subtitles are loaded for this video yet. Choose a subtitle file from Home first.";
       return;
     }
 
@@ -3957,7 +4723,7 @@ async function loadPlayerTranscript() {
     });
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    playerError.value = `加载字幕失败: ${errorMsg}`;
+    playerError.value = `Failed to load subtitles: ${errorMsg}`;
   } finally {
     playerTranscriptLoading.value = false;
   }
@@ -3965,7 +4731,7 @@ async function loadPlayerTranscript() {
 
 async function analyzeCurrentSubtitleVocabulary() {
   if (!canAnalyzeCurrentPlayerSubtitle.value) {
-    message.info("请先完成视频和字幕加载");
+    message.info("Load the video and subtitles first.");
     return;
   }
 
@@ -3975,7 +4741,7 @@ async function analyzeCurrentSubtitleVocabulary() {
   youtubeSubtitles.value = [
     {
       language_code: "local",
-      language: `本地字幕 · ${playerSubtitleFileName.value || "未命名"}`,
+      language: `Local subtitles · ${playerSubtitleFileName.value || "Untitled"}`,
     },
   ];
   selectedYoutubeSubtitle.value = "local";
@@ -4318,6 +5084,14 @@ body {
   flex-wrap: wrap;
 }
 
+.player-video-rate-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .player-icon-btn {
   width: 74px;
   height: 56px;
@@ -4326,6 +5100,11 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.player-icon-btn-edge {
+  width: 64px;
+  min-width: 64px;
 }
 
 .player-icon-btn .anticon {
@@ -4341,6 +5120,14 @@ body {
 
 .player-icon-btn-play .anticon {
   font-size: 30px;
+}
+
+.player-rate-btn {
+  min-width: 64px;
+  height: 38px;
+  padding: 0 14px !important;
+  border-radius: 10px !important;
+  font-weight: 600;
 }
 
 .player-secondary-btn {
@@ -4609,6 +5396,172 @@ body {
   margin-left: 4px;
 }
 
+.difficulty-section {
+  margin-bottom: 24px;
+  padding-top: 4px;
+}
+
+.difficulty-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.difficulty-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 168px;
+  padding: 16px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  border: 1px solid #dbe9ff;
+}
+
+.difficulty-summary-card-fit {
+  background: linear-gradient(180deg, #fffdf2 0%, #fff7e6 100%);
+  border-color: #ffe0b3;
+}
+
+.difficulty-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.difficulty-card-label {
+  color: #4f5f73;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.difficulty-card-score {
+  font-size: 38px;
+  line-height: 1;
+  font-weight: 700;
+  color: #163250;
+}
+
+.difficulty-fit-value {
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #8c5f00;
+}
+
+.difficulty-fit-subvalue,
+.difficulty-card-desc {
+  color: #5b6b7f;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.difficulty-insight {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #2f5d1d;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.difficulty-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.difficulty-metrics-card {
+  padding: 16px;
+  border-radius: 14px;
+  background: #fafcff;
+  border: 1px solid #e6f0ff;
+}
+
+.difficulty-metrics-title {
+  margin-bottom: 12px;
+  color: #163250;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.difficulty-metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.difficulty-metric-item {
+  padding: 12px 12px 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #eef3f8;
+}
+
+.difficulty-metric-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.difficulty-metric-label {
+  color: #526275;
+  font-size: 13px;
+}
+
+.difficulty-metric-value {
+  color: #163250;
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.difficulty-metric-hint {
+  margin-top: 6px;
+  color: #7b8794;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.difficulty-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.difficulty-badge-easy {
+  background: #f6ffed;
+  color: #389e0d;
+}
+
+.difficulty-badge-medium,
+.difficulty-badge-ideal {
+  background: #e6f4ff;
+  color: #1677ff;
+}
+
+.difficulty-badge-hard,
+.difficulty-badge-stretch {
+  background: #fff7e6;
+  color: #d46b08;
+}
+
+.difficulty-badge-very-hard {
+  background: #fff1f0;
+  color: #cf1322;
+}
+
 /* 学习进度样式 */
 .learning-progress-section {
   flex: 1;
@@ -4784,6 +5737,11 @@ body {
   .config-section {
     width: 100%;
   }
+
+  .difficulty-summary-grid,
+  .difficulty-metrics-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
@@ -4836,11 +5794,20 @@ body {
     gap: 12px;
   }
 
+  .player-video-rate-controls {
+    gap: 6px;
+  }
+
   .player-icon-btn {
     width: 62px;
     min-width: 62px;
     height: 50px;
     border-radius: 12px !important;
+  }
+
+  .player-icon-btn-edge {
+    width: 54px;
+    min-width: 54px;
   }
 
   .player-icon-btn .anticon {
@@ -4858,11 +5825,31 @@ body {
     font-size: 24px;
   }
 
+  .player-rate-btn {
+    min-width: 58px;
+    height: 34px;
+    padding: 0 10px !important;
+    font-size: 13px;
+  }
+
   .player-secondary-btn {
     min-width: 112px;
     height: 42px;
     padding: 0 18px !important;
     font-size: 14px;
+  }
+
+  .overview-content {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .difficulty-summary-card,
+  .difficulty-metrics-card {
+    padding: 14px;
+  }
+
+  .difficulty-card-score {
+    font-size: 32px;
   }
 
   .player-subtitle-item {
@@ -5175,6 +6162,20 @@ body {
 
   .section-header h2 {
     font-size: 16px;
+  }
+
+  .overview-content {
+    grid-template-columns: 1fr;
+  }
+
+  .difficulty-card-header,
+  .difficulty-metric-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .difficulty-fit-value {
+    font-size: 20px;
   }
 }
 </style>
