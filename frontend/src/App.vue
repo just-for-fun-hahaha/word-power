@@ -1190,6 +1190,9 @@ const tedPagination = ref({
   current: 1,
   pageSize: 20,
   showSizeChanger: true,
+  showLessItems: true,
+  responsive: true,
+  size: "small",
   pageSizeOptions: ["10", "20", "50", "100"],
   showTotal: (total) => `${total} items`,
 });
@@ -5883,6 +5886,17 @@ body {
   margin: 8px 0 0 0;
   padding-top: 8px;
   border-top: 1px solid #f0f0f0;
+}
+
+.table-section :deep(.ant-table-pagination.ant-pagination) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.table-section :deep(.ant-table-pagination .ant-pagination-options) {
+  margin-inline-start: auto;
 }
 
 :deep(.ant-select-focused .ant-select-selector) {
