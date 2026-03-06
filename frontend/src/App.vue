@@ -492,6 +492,32 @@
                         >
                       </div>
                     </div>
+                    <div
+                      v-for="metric in tedDifficultyAssessment?.metrics || []"
+                      :key="`overview-metric-${metric.label}`"
+                      class="overview-item"
+                    >
+                      <div class="overview-label overview-label-with-help">
+                        <span>{{ metric.label }}</span>
+                        <a-popover trigger="click" placement="top">
+                          <template #content>
+                            <div class="difficulty-metric-help-popover">
+                              {{ metric.hint }}
+                            </div>
+                          </template>
+                          <button
+                            type="button"
+                            class="difficulty-metric-help-btn"
+                            :aria-label="`Explain ${metric.label}`"
+                          >
+                            ?
+                          </button>
+                        </a-popover>
+                      </div>
+                      <div class="overview-value">
+                        {{ metric.value }}{{ metric.suffix || "" }}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -509,8 +535,27 @@
                           {{ tedDifficultyAssessment.objective.label }}
                         </span>
                       </div>
-                      <div class="difficulty-card-score">
-                        {{ tedDifficultyAssessment.objective.score }}
+                      <div class="difficulty-card-score-row">
+                        <div class="difficulty-card-score">
+                          {{ tedDifficultyAssessment.objective.score }}%
+                        </div>
+                        <div class="difficulty-card-score-caption">
+                          中间 = 中等难度
+                        </div>
+                      </div>
+                      <div class="difficulty-bar-block">
+                        <div class="difficulty-bar difficulty-bar-neutral">
+                          <div class="difficulty-bar-center-line"></div>
+                          <div
+                            class="difficulty-bar-marker"
+                            :style="getDifficultyBarMarkerStyle(tedDifficultyAssessment.objective.score)"
+                          ></div>
+                        </div>
+                        <div class="difficulty-bar-scale">
+                          <span>容易</span>
+                          <span>中等</span>
+                          <span>很难</span>
+                        </div>
                       </div>
                       <div class="difficulty-card-desc">
                         {{ tedDifficultyAssessment.objective.description }}
@@ -524,8 +569,27 @@
                           {{ tedDifficultyAssessment.personal.label }}
                         </span>
                       </div>
-                      <div class="difficulty-card-score">
-                        {{ tedDifficultyAssessment.personal.score }}
+                      <div class="difficulty-card-score-row">
+                        <div class="difficulty-card-score">
+                          {{ tedDifficultyAssessment.personal.score }}%
+                        </div>
+                        <div class="difficulty-card-score-caption">
+                          中间 = 对你来说中等
+                        </div>
+                      </div>
+                      <div class="difficulty-bar-block">
+                        <div class="difficulty-bar difficulty-bar-neutral">
+                          <div class="difficulty-bar-center-line"></div>
+                          <div
+                            class="difficulty-bar-marker"
+                            :style="getDifficultyBarMarkerStyle(tedDifficultyAssessment.personal.score)"
+                          ></div>
+                        </div>
+                        <div class="difficulty-bar-scale">
+                          <span>不难</span>
+                          <span>中等</span>
+                          <span>很吃力</span>
+                        </div>
                       </div>
                       <div class="difficulty-card-desc">
                         {{ tedDifficultyAssessment.personal.description }}
@@ -539,8 +603,27 @@
                           {{ tedDifficultyAssessment.fit.label }}
                         </span>
                       </div>
-                      <div class="difficulty-fit-value">
-                        {{ tedDifficultyAssessment.fit.supportingValue }}
+                      <div class="difficulty-card-score-row">
+                        <div class="difficulty-fit-value">
+                          {{ tedDifficultyAssessment.fit.levelText }}
+                        </div>
+                        <div class="difficulty-card-score-caption">
+                          正中 = 刚好 i+1
+                        </div>
+                      </div>
+                      <div class="difficulty-bar-block">
+                        <div class="difficulty-bar difficulty-bar-fit">
+                          <div class="difficulty-bar-center-line"></div>
+                          <div
+                            class="difficulty-bar-marker difficulty-bar-marker-fit"
+                            :style="getDifficultyBarMarkerStyle(tedDifficultyAssessment.fit.position)"
+                          ></div>
+                        </div>
+                        <div class="difficulty-bar-scale">
+                          <span>i / i-1</span>
+                          <span>i+1</span>
+                          <span>i+2+</span>
+                        </div>
                       </div>
                       <div class="difficulty-card-desc">
                         {{ tedDifficultyAssessment.fit.description }}
@@ -554,46 +637,6 @@
 
                   <div class="difficulty-insight">
                     {{ tedDifficultyAssessment.summary }}
-                  </div>
-
-                  <div class="difficulty-metrics-grid">
-                    <div class="difficulty-metrics-card">
-                      <div class="difficulty-metrics-title">Material-Level Metrics</div>
-                      <div class="difficulty-metric-list">
-                        <div
-                          v-for="metric in tedDifficultyAssessment.objective.metrics"
-                          :key="`objective-${metric.label}`"
-                          class="difficulty-metric-item"
-                        >
-                          <div class="difficulty-metric-row">
-                            <span class="difficulty-metric-label">{{ metric.label }}</span>
-                            <span class="difficulty-metric-value">
-                              {{ metric.value }}{{ metric.suffix || "" }}
-                            </span>
-                          </div>
-                          <div class="difficulty-metric-hint">{{ metric.hint }}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="difficulty-metrics-card">
-                      <div class="difficulty-metrics-title">Personalized Metrics</div>
-                      <div class="difficulty-metric-list">
-                        <div
-                          v-for="metric in tedDifficultyAssessment.personal.metrics"
-                          :key="`personal-${metric.label}`"
-                          class="difficulty-metric-item"
-                        >
-                          <div class="difficulty-metric-row">
-                            <span class="difficulty-metric-label">{{ metric.label }}</span>
-                            <span class="difficulty-metric-value">
-                              {{ metric.value }}{{ metric.suffix || "" }}
-                            </span>
-                          </div>
-                          <div class="difficulty-metric-hint">{{ metric.hint }}</div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -2488,16 +2531,24 @@ function getDifficultyBadgeClass(levelKey) {
   return `difficulty-badge difficulty-badge-${levelKey}`;
 }
 
+function getDifficultyBarMarkerStyle(score) {
+  return {
+    left: `${clampNumber(Number(score) || 0, 0, 100)}%`,
+  };
+}
+
 function buildObjectiveDifficultyDescription({
   uniquePerThousand,
   offListUniqueRatioPct,
   avgLineLength,
+  longLineRatioPct,
 }) {
   const reasons = [];
 
   if (uniquePerThousand >= 320) reasons.push("fast-changing vocabulary");
   if (offListUniqueRatioPct >= 15) reasons.push("many off-list words");
   if (avgLineLength >= 9) reasons.push("longer sentences");
+  if (longLineRatioPct >= 35) reasons.push("many longer subtitle lines");
 
   if (!reasons.length) {
     return "Vocabulary density and sentence length are both fairly steady.";
@@ -2507,62 +2558,117 @@ function buildObjectiveDifficultyDescription({
 }
 
 function buildPersonalDifficultyDescription({
-  knownCoveragePct,
+  unknownWordsPerMinute,
+  cleanLineRatioPct,
   linesWithUnknownRatioPct,
-  challengingLineRatioPct,
+  longLinesWithUnknownRatioPct,
 }) {
-  if (knownCoveragePct >= 97 && challengingLineRatioPct <= 10) {
-    return "You can follow most of the material smoothly.";
+  if (unknownWordsPerMinute <= 2 && cleanLineRatioPct >= 70) {
+    return "Most lines are clean for shadowing, so this behaves more like review than growth input.";
   }
-  if (knownCoveragePct >= 93 && challengingLineRatioPct <= 25) {
-    return "It is mostly understandable, but some new words and hard lines will still slow you down.";
+  if (
+    unknownWordsPerMinute <= 5 &&
+    linesWithUnknownRatioPct <= 40 &&
+    longLinesWithUnknownRatioPct <= 18
+  ) {
+    return "The pressure is present but controlled, which matches chunk-based shadowing fairly well.";
   }
-  if (knownCoveragePct >= 88) {
-    return "You will need more pauses or replays, but it is still workable.";
+  if (
+    unknownWordsPerMinute <= 7 &&
+    linesWithUnknownRatioPct <= 60 &&
+    longLinesWithUnknownRatioPct <= 30
+  ) {
+    return "You can still work with it, but many lines will require pausing, splitting, or replaying.";
   }
   if (linesWithUnknownRatioPct >= 70) {
-    return "Most lines contain unknown words, so the comprehension load is high.";
+    return "Most lines contain at least one unknown word, so it is not clean enough for comfortable shadowing.";
   }
-  return "This is difficult for your current stage, so previewing key words first will help.";
+  return "The line-by-line pressure is high for chunk accumulation, so previewing or pre-learning words will help.";
 }
 
 function buildIPlusOneAssessment({
-  knownCoveragePct,
-  unknownTokenRatioPct,
-  challengingLineRatioPct,
+  unknownWordsPerMinute,
+  cleanLineRatioPct,
+  linesWithUnknownRatioPct,
+  longLinesWithUnknownRatioPct,
 }) {
-  if (knownCoveragePct >= 98.5 && challengingLineRatioPct <= 8) {
+  const idealUnknownWordsPerMinute = 4;
+  const fitPosition = clampNumber(
+    50 +
+      (unknownWordsPerMinute - idealUnknownWordsPerMinute) * 10 +
+      (linesWithUnknownRatioPct - 35) * 0.55 +
+      (longLinesWithUnknownRatioPct - 12) * 0.45 -
+      Math.max(0, cleanLineRatioPct - 55) * 0.35,
+    0,
+    100
+  );
+
+  const levelOffset = roundMetric((fitPosition - 50) / 25, 1);
+  const estimatedLevel = roundMetric(1 + levelOffset, 1);
+  const levelText =
+    estimatedLevel <= -0.5
+      ? "i-1"
+      : estimatedLevel <= 0.4
+      ? "i"
+      : estimatedLevel < 1.6
+      ? "i+1"
+      : estimatedLevel < 2.6
+      ? "i+2"
+      : "i+3+";
+
+  if (
+    unknownWordsPerMinute < 2 &&
+    cleanLineRatioPct >= 70 &&
+    longLinesWithUnknownRatioPct <= 10
+  ) {
     return {
       key: "easy",
       label: "Too Easy",
-      description: "This feels more like review or extensive listening than strict i+1 input.",
-      recommendation: "If you want stronger growth input, switch to a less familiar topic.",
+      position: fitPosition,
+      levelText,
+      description: "There are too few new words per minute, and too many clean lines for this to act as strong growth input.",
+      recommendation: "Use it for smooth shadowing or switch to slightly less familiar material.",
     };
   }
 
-  if (knownCoveragePct >= 95 && unknownTokenRatioPct <= 6 && challengingLineRatioPct <= 22) {
+  if (
+    unknownWordsPerMinute >= 3 &&
+    unknownWordsPerMinute <= 5 &&
+    linesWithUnknownRatioPct <= 40 &&
+    longLinesWithUnknownRatioPct <= 18
+  ) {
     return {
       key: "ideal",
       label: "Near i+1",
-      description: "Most of it is understandable while still leaving room for a manageable amount of new vocabulary.",
-      recommendation: "Good for focused listening, shadowing, or repeated exposure.",
+      position: fitPosition,
+      levelText,
+      description: "This sits close to your preferred shadowing zone: a few new words per minute without overwhelming most lines.",
+      recommendation: "Good for semantic chunking, shadowing, and repeated exposure.",
     };
   }
 
-  if (knownCoveragePct >= 90 && unknownTokenRatioPct <= 12 && challengingLineRatioPct <= 40) {
+  if (
+    unknownWordsPerMinute <= 7 &&
+    linesWithUnknownRatioPct <= 60 &&
+    longLinesWithUnknownRatioPct <= 30
+  ) {
     return {
       key: "stretch",
       label: "Stretch",
-      description: "Still within reach, but you will need more pauses, replays, or lookups.",
-      recommendation: "Best used in short chunks instead of one long session.",
+      position: fitPosition,
+      levelText,
+      description: "It is still workable, but enough lines contain unknown words that shadowing flow will break often.",
+      recommendation: "Use shorter chunks or pre-learn the key unknown words first.",
     };
   }
 
   return {
     key: "very-hard",
     label: "Too Hard",
-    description: "This is beyond your current i+1 comfort zone, so brute-forcing it will be inefficient.",
-    recommendation: "Preview key words first, or switch to a more familiar domain.",
+    position: fitPosition,
+    levelText,
+    description: "Too many lines are contaminated by unknown words, so it is inefficient for chunk-based shadowing right now.",
+    recommendation: "Preview the unknown vocabulary first, or switch to cleaner material.",
   };
 }
 
@@ -2603,8 +2709,9 @@ function buildTranscriptDifficultyAssessment(lines) {
   let unknownTokens = 0;
   let sentenceCount = 0;
   let linesWithUnknown = 0;
-  let challengingLines = 0;
-  let idealIPlusOneLines = 0;
+  let cleanLines = 0;
+  let longLines = 0;
+  let longLinesWithUnknown = 0;
 
   normalizedLineWords.forEach((words) => {
     if (!words.length) {
@@ -2613,6 +2720,10 @@ function buildTranscriptDifficultyAssessment(lines) {
 
     sentenceCount++;
     let lineUnknownCount = 0;
+    const isLongLine = words.length >= 9;
+    if (isLongLine) {
+      longLines++;
+    }
 
     words.forEach((word) => {
       totalTokens++;
@@ -2627,15 +2738,13 @@ function buildTranscriptDifficultyAssessment(lines) {
       }
     });
 
-    const unknownRatio = lineUnknownCount / words.length;
     if (lineUnknownCount > 0) {
       linesWithUnknown++;
-    }
-    if (lineUnknownCount >= 2 && unknownRatio >= 0.2) {
-      challengingLines++;
-    }
-    if (lineUnknownCount > 0 && unknownRatio <= 0.1) {
-      idealIPlusOneLines++;
+      if (isLongLine) {
+        longLinesWithUnknown++;
+      }
+    } else {
+      cleanLines++;
     }
   });
 
@@ -2652,26 +2761,37 @@ function buildTranscriptDifficultyAssessment(lines) {
   const unknownTokenRatio = unknownTokens / totalTokens;
   const unknownUniqueRatio = unknownUniqueCount / uniqueCount;
   const linesWithUnknownRatio = linesWithUnknown / sentenceCount;
-  const challengingLineRatio = challengingLines / sentenceCount;
-  const idealIPlusOneLineRatio = idealIPlusOneLines / sentenceCount;
+  const cleanLineRatio = cleanLines / sentenceCount;
+  const longLineRatio = longLines / sentenceCount;
+  const longLinesWithUnknownRatio = longLinesWithUnknown / sentenceCount;
+  const durationSeconds = Math.max(
+    1,
+    Number(lines[lines.length - 1]?.end || 0) - Number(lines[0]?.start || 0)
+  );
+  const durationMinutes = durationSeconds / 60;
+  const unknownWordsPerMinute = unknownTokens / durationMinutes;
 
   const uniquePerThousandScore = normalizeScore(uniquePerThousand, 180, 360);
   const offListRatioScore = normalizeScore(offListUniqueRatio * 100, 2, 22);
   const sentenceLengthScore = normalizeScore(avgLineLength, 4.5, 12);
+  const longLineRatioScore = normalizeScore(longLineRatio * 100, 15, 55);
   const objectiveScore = roundMetric(
-    uniquePerThousandScore * 0.45 +
-      offListRatioScore * 0.35 +
-      sentenceLengthScore * 0.2,
+    uniquePerThousandScore * 0.35 +
+      offListRatioScore * 0.25 +
+      sentenceLengthScore * 0.2 +
+      longLineRatioScore * 0.2,
     0
   );
 
-  const unknownTokenScore = normalizeScore(unknownTokenRatio * 100, 1.5, 12);
   const unknownUniqueScore = normalizeScore(unknownUniqueRatio * 100, 5, 45);
-  const challengingLineScore = normalizeScore(challengingLineRatio * 100, 5, 35);
+  const linesWithUnknownScore = normalizeScore(linesWithUnknownRatio * 100, 15, 70);
+  const longLinesWithUnknownScore = normalizeScore(longLinesWithUnknownRatio * 100, 5, 35);
+  const unknownWordsPerMinuteScore = normalizeScore(unknownWordsPerMinute, 2, 8);
   const personalScore = roundMetric(
-    unknownTokenScore * 0.5 +
-      unknownUniqueScore * 0.25 +
-      challengingLineScore * 0.25,
+    linesWithUnknownScore * 0.4 +
+      unknownWordsPerMinuteScore * 0.35 +
+      longLinesWithUnknownScore * 0.15 +
+      unknownUniqueScore * 0.1,
     0
   );
 
@@ -2682,9 +2802,12 @@ function buildTranscriptDifficultyAssessment(lines) {
   const unknownTokenRatioPct = roundMetric(unknownTokenRatio * 100, 1);
   const unknownUniqueRatioPct = roundMetric(unknownUniqueRatio * 100, 1);
   const linesWithUnknownRatioPct = roundMetric(linesWithUnknownRatio * 100, 1);
-  const challengingLineRatioPct = roundMetric(challengingLineRatio * 100, 1);
-  const idealIPlusOneLineRatioPct = roundMetric(idealIPlusOneLineRatio * 100, 1);
+  const cleanLineRatioPct = roundMetric(cleanLineRatio * 100, 1);
+  const longLineRatioPct = roundMetric(longLineRatio * 100, 1);
+  const longLinesWithUnknownRatioPct = roundMetric(longLinesWithUnknownRatio * 100, 1);
   const offListUniqueRatioPct = roundMetric(offListUniqueRatio * 100, 1);
+  const unknownWordsPerMinuteRounded = roundMetric(unknownWordsPerMinute, 1);
+  const durationMinutesRounded = roundMetric(durationMinutes, 1);
 
   const objective = {
     score: objectiveScore,
@@ -2694,26 +2817,9 @@ function buildTranscriptDifficultyAssessment(lines) {
       uniquePerThousand: roundMetric(uniquePerThousand, 1),
       offListUniqueRatioPct,
       avgLineLength: roundMetric(avgLineLength, 1),
+      longLineRatioPct,
     }),
-    metrics: [
-      {
-        label: "Unique Words per 1,000 Tokens",
-        value: roundMetric(uniquePerThousand, 1),
-        suffix: "",
-        hint: "Higher means the vocabulary changes more quickly and you cannot rely on repetition as much.",
-      },
-      {
-        label: "10000+ Unique Word Share",
-        value: formatMetricPercent(offListUniqueRatioPct),
-        hint: "Higher means more vocabulary sits outside the most common high-frequency bands.",
-      },
-      {
-        label: "Average Words per Line",
-        value: roundMetric(avgLineLength, 1),
-        suffix: " words",
-        hint: "Higher means each subtitle line carries more processing load.",
-      },
-    ],
+    metrics: [],
   };
 
   const personal = {
@@ -2721,54 +2827,48 @@ function buildTranscriptDifficultyAssessment(lines) {
     label: personalLevel.label,
     levelKey: personalLevel.key,
     description: buildPersonalDifficultyDescription({
-      knownCoveragePct,
+      unknownWordsPerMinute: unknownWordsPerMinuteRounded,
+      cleanLineRatioPct,
       linesWithUnknownRatioPct,
-      challengingLineRatioPct,
+      longLinesWithUnknownRatioPct,
     }),
+    metrics: [],
+  };
+
+  const fit = buildIPlusOneAssessment({
+    unknownWordsPerMinute: unknownWordsPerMinuteRounded,
+    cleanLineRatioPct,
+    linesWithUnknownRatioPct,
+    longLinesWithUnknownRatioPct,
+  });
+
+  return {
+    sampleLabel: `${sentenceCount} lines · ${totalTokens} tokens · ${durationMinutesRounded} min`,
+    summary: buildDifficultyNarrative({ objective, personal, fit }),
+    objective,
+    personal,
     metrics: [
       {
-        label: "Mastered Token Coverage",
-        value: formatMetricPercent(knownCoveragePct),
-        hint: "The share of all word tokens in this material that you have already mastered.",
+        label: "Unknown Words / Minute",
+        value: unknownWordsPerMinuteRounded,
+        suffix: "",
+        hint: "For your current goal, about 3 to 5 unknown words per minute is the target zone.",
+      },
+      {
+        label: "Clean Lines",
+        value: formatMetricPercent(cleanLineRatioPct),
+        hint: "Lines with zero unknown words. Current line detection is based on subtitle entries, not full grammar sentences.",
       },
       {
         label: "Unmastered Unique Word Share",
         value: formatMetricPercent(unknownUniqueRatioPct),
-        hint: "Higher means the material contains more domain vocabulary you have not mastered yet.",
-      },
-      {
-        label: "Lines with Unknown Words",
-        value: formatMetricPercent(linesWithUnknownRatioPct),
-        hint: "The percentage of subtitle lines that contain at least one unmastered word.",
-      },
-      {
-        label: "High-Pressure Lines",
-        value: formatMetricPercent(challengingLineRatioPct),
-        hint: "Lines where unknown words are at least 20% of the line and there are at least two of them.",
-      },
-      {
-        label: "Light i+1 Lines",
-        value: formatMetricPercent(idealIPlusOneLineRatioPct),
-        hint: "Lines that contain some new vocabulary, but where unknown words stay at or below 10%.",
+        hint: "Among non-repeated vocabulary types, this is the percentage that you have not mastered yet.",
       },
     ],
-  };
-
-  const fit = buildIPlusOneAssessment({
-    knownCoveragePct,
-    unknownTokenRatioPct,
-    challengingLineRatioPct,
-  });
-
-  return {
-    sampleLabel: `${sentenceCount} lines · ${totalTokens} tokens`,
-    summary: buildDifficultyNarrative({ objective, personal, fit }),
-    objective,
-    personal,
     fit: {
       ...fit,
-      supportingValue: `${formatMetricPercent(knownCoveragePct)} coverage`,
-      secondaryValue: `${formatMetricPercent(unknownTokenRatioPct)} unknown tokens`,
+      supportingValue: `${unknownWordsPerMinuteRounded} unknown/min`,
+      secondaryValue: `${formatMetricPercent(cleanLineRatioPct)} clean lines`,
     },
   };
 }
@@ -5235,8 +5335,8 @@ body {
 
 /* 左侧表格区域 */
 .table-section {
-  flex: 1;
-  width: 50%;
+  flex: 2 1 0;
+  width: auto;
   background: #fff;
   border-radius: 8px;
   padding: 20px;
@@ -5272,8 +5372,8 @@ body {
 
 /* 右侧配置区域 */
 .config-section {
-  flex: 1;
-  width: 50%;
+  flex: 3 1 0;
+  width: auto;
   background: #fff;
   border-radius: 8px;
   padding: 20px;
@@ -5366,6 +5466,12 @@ body {
   margin-bottom: 8px;
 }
 
+.overview-label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .overview-value {
   font-size: 24px;
   font-weight: 600;
@@ -5411,7 +5517,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 168px;
+  min-height: 220px;
   padding: 16px;
   border-radius: 14px;
   background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
@@ -5443,11 +5549,83 @@ body {
   color: #163250;
 }
 
+.difficulty-card-score-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.difficulty-card-score-caption {
+  color: #7b8794;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: right;
+}
+
 .difficulty-fit-value {
   font-size: 22px;
   line-height: 1.2;
   font-weight: 700;
   color: #8c5f00;
+}
+
+.difficulty-bar-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.difficulty-bar {
+  position: relative;
+  height: 16px;
+  border-radius: 999px;
+  overflow: visible;
+}
+
+.difficulty-bar-neutral {
+  background: linear-gradient(90deg, #d9f7be 0%, #fff7e6 50%, #ffccc7 100%);
+}
+
+.difficulty-bar-fit {
+  background: linear-gradient(90deg, #d9f7be 0%, #fff7e6 50%, #ffd6bf 75%, #ffccc7 100%);
+}
+
+.difficulty-bar-center-line {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: rgba(22, 50, 80, 0.2);
+  border-radius: 999px;
+}
+
+.difficulty-bar-marker {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #163250;
+  border: 3px solid #ffffff;
+  box-shadow: 0 4px 10px rgba(22, 50, 80, 0.18);
+  transform: translate(-50%, -50%);
+}
+
+.difficulty-bar-marker-fit {
+  background: #ad6800;
+}
+
+.difficulty-bar-scale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #6b7a90;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .difficulty-fit-subvalue,
@@ -5510,6 +5688,9 @@ body {
 }
 
 .difficulty-metric-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: #526275;
   font-size: 13px;
 }
@@ -5521,11 +5702,30 @@ body {
   white-space: nowrap;
 }
 
-.difficulty-metric-hint {
-  margin-top: 6px;
-  color: #7b8794;
+.difficulty-metric-help-btn {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: #e6f4ff;
+  color: #1677ff;
   font-size: 12px;
-  line-height: 1.5;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.difficulty-metric-help-btn:hover {
+  background: #bae0ff;
+}
+
+.difficulty-metric-help-popover {
+  max-width: 240px;
+  color: #445468;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .difficulty-badge {
@@ -5850,6 +6050,15 @@ body {
 
   .difficulty-card-score {
     font-size: 32px;
+  }
+
+  .difficulty-card-score-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .difficulty-card-score-caption {
+    text-align: left;
   }
 
   .player-subtitle-item {
