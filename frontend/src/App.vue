@@ -55,6 +55,9 @@
                   Upload a local video and English subtitles to cache them in this browser,
                   or upload subtitles only to judge difficulty before importing the video.
                 </p>
+                <div class="home-build-meta">
+                  Current build: {{ appBuildTimeLabel }}
+                </div>
               </div>
               <div class="home-entry-row">
                 <a-input
@@ -1020,6 +1023,7 @@ import {
 import { message, Modal } from "ant-design-vue";
 
 const locale = enUS;
+const APP_BUILD_TIME_ISO = __APP_BUILD_TIME__;
 
 const PLAYER_HISTORY_STORAGE_KEY = "word_power_player_history_v2";
 const MASTERED_WORDS_STORAGE_KEY = "word_power_mastered_words_v1";
@@ -1197,6 +1201,7 @@ const homeCanAnalyzeSubtitleOnly = computed(() => {
 });
 
 const canOpenPlayerPage = computed(() => !!playerVideoId.value);
+const appBuildTimeLabel = computed(() => formatBuildTimeUtc(APP_BUILD_TIME_ISO));
 
 // ===== TED页面状态 =====
 const tedColumns = [
@@ -5446,6 +5451,21 @@ function formatPlayerClock(seconds) {
 
   return `${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
 }
+
+function formatBuildTimeUtc(value) {
+  const parsed = new Date(String(value || ""));
+  if (Number.isNaN(parsed.getTime())) {
+    return "Unknown";
+  }
+
+  const year = parsed.getUTCFullYear();
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getUTCDate()).padStart(2, "0");
+  const hours = String(parsed.getUTCHours()).padStart(2, "0");
+  const minutes = String(parsed.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(parsed.getUTCSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`;
+}
 </script>
 
 <style>
@@ -6803,6 +6823,14 @@ body {
   margin: 0;
   color: #666;
   font-size: 14px;
+}
+
+.home-build-meta {
+  margin-top: 8px;
+  color: #7a8699;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .home-entry-row {
