@@ -4849,7 +4849,7 @@ function handlePlaybackRateMenuClick(info) {
 }
 
 function formatSubtitleFontScaleLabel(scale) {
-  return `Text ${formatPlaybackRateLabel(scale)}`;
+  return `Aa ${formatPlaybackRateLabel(scale)}`;
 }
 
 function handleSubtitleFontScaleMenuClick(info) {
@@ -5891,7 +5891,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -5904,9 +5904,9 @@ body {
 }
 
 .player-icon-btn {
-  width: 74px;
-  height: 56px;
-  min-width: 74px;
+  width: 66px;
+  height: 52px;
+  min-width: 66px;
   border-radius: 14px !important;
   display: inline-flex;
   align-items: center;
@@ -5914,33 +5914,34 @@ body {
 }
 
 .player-icon-btn-edge {
-  width: 64px;
-  min-width: 64px;
+  width: 56px;
+  min-width: 56px;
 }
 
 .player-icon-btn .anticon {
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .player-icon-btn-play {
-  width: 98px;
-  height: 68px;
-  min-width: 98px;
+  width: 88px;
+  height: 62px;
+  min-width: 88px;
   border-radius: 16px !important;
 }
 
 .player-icon-btn-play .anticon {
-  font-size: 30px;
+  font-size: 27px;
 }
 
 .player-control-trigger-btn {
-  width: 112px;
-  min-width: 112px;
-  height: 56px;
-  padding: 0 16px !important;
+  width: 88px;
+  min-width: 88px;
+  height: 52px;
+  padding: 0 10px !important;
   border-radius: 14px !important;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .player-secondary-btn {
@@ -6782,42 +6783,42 @@ body {
   }
 
   .player-video-main-controls {
-    gap: 12px;
+    gap: 8px;
   }
 
   .player-icon-btn {
-    width: 62px;
-    min-width: 62px;
-    height: 50px;
+    width: 54px;
+    min-width: 54px;
+    height: 46px;
     border-radius: 12px !important;
   }
 
   .player-icon-btn-edge {
-    width: 54px;
-    min-width: 54px;
+    width: 46px;
+    min-width: 46px;
   }
 
   .player-icon-btn .anticon {
-    font-size: 19px;
+    font-size: 17px;
   }
 
   .player-icon-btn-play {
-    width: 82px;
-    min-width: 82px;
-    height: 60px;
+    width: 72px;
+    min-width: 72px;
+    height: 54px;
     border-radius: 14px !important;
   }
 
   .player-icon-btn-play .anticon {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .player-control-trigger-btn {
-    width: 96px;
-    min-width: 96px;
-    height: 46px;
-    padding: 0 12px !important;
-    font-size: 14px;
+    width: 80px;
+    min-width: 80px;
+    height: 42px;
+    padding: 0 8px !important;
+    font-size: 13px;
   }
 
   .player-secondary-btn {
