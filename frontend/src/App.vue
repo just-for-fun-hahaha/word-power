@@ -7,7 +7,7 @@
             <HomeOutlined />
           </button>
           <div class="header-main">
-            <h1 class="header-title" @click="goHome">I Can See Your Progress</h1>
+            <h1 class="header-title" @click="goHome">I'm a Genius</h1>
             <div class="header-nav">
               <button
                 class="header-nav-item"
@@ -700,6 +700,28 @@
                     </span>
                   </div>
                   <div class="player-video-main-controls">
+                    <a-dropdown :trigger="['click']" placement="bottomCenter">
+                      <a-button
+                        class="player-control-trigger-btn player-font-scale-trigger-btn"
+                        title="Subtitle text size"
+                        :disabled="!canAdjustSubtitleFontSize"
+                      >
+                        {{ formatSubtitleFontScaleLabel(playerSubtitleFontScale) }}
+                      </a-button>
+                      <template #overlay>
+                        <a-menu
+                          :selectedKeys="[String(playerSubtitleFontScale)]"
+                          @click="handleSubtitleFontScaleMenuClick"
+                        >
+                          <a-menu-item
+                            v-for="scale in playerSubtitleFontScaleOptions"
+                            :key="String(scale)"
+                          >
+                            {{ formatPlaybackRateLabel(scale) }}
+                          </a-menu-item>
+                        </a-menu>
+                      </template>
+                    </a-dropdown>
                     <a-button
                       class="player-icon-btn player-icon-btn-edge"
                       title="Jump to Start"
@@ -752,18 +774,28 @@
                         <FastForwardOutlined />
                       </template>
                     </a-button>
-                  </div>
-                  <div class="player-video-rate-controls">
-                    <a-button
-                      v-for="rate in PLAYER_PLAYBACK_RATES"
-                      :key="rate"
-                      class="player-rate-btn"
-                      :type="playerPlaybackRate === rate ? 'primary' : 'default'"
-                      :disabled="!canControlPlayback || !isPlaybackRateAvailable(rate)"
-                      @click="setPlayerPlaybackRate(rate)"
-                    >
-                      {{ formatPlaybackRateLabel(rate) }}
-                    </a-button>
+                    <a-dropdown :trigger="['click']" placement="bottomCenter">
+                      <a-button
+                        class="player-control-trigger-btn player-rate-trigger-btn"
+                        title="Playback speed"
+                        :disabled="!canControlPlayback"
+                      >
+                        {{ formatPlaybackRateLabel(playerPlaybackRate) }}
+                      </a-button>
+                      <template #overlay>
+                        <a-menu
+                          :selectedKeys="[String(playerPlaybackRate)]"
+                          @click="handlePlaybackRateMenuClick"
+                        >
+                          <a-menu-item
+                            v-for="rate in playerPlaybackRateOptions"
+                            :key="String(rate)"
+                          >
+                            {{ formatPlaybackRateLabel(rate) }}
+                          </a-menu-item>
+                        </a-menu>
+                      </template>
+                    </a-dropdown>
                   </div>
                   <div class="player-video-secondary-controls">
                     <a-button
@@ -811,7 +843,7 @@
                 </div>
               </div>
 
-              <div class="player-subtitle-panel">
+              <div class="player-subtitle-panel" :style="playerSubtitleStyleVars">
                 <div
                   v-if="playerTranscriptLoading"
                   style="height: 100%; display: flex; justify-content: center; align-items: center;"
@@ -1049,6 +1081,10 @@ const SINGLE_LINE_STOP_BUFFER = 0.04;
 const SINGLE_LINE_EARLY_PAUSE_SEC = 0.12;
 const SINGLE_LINE_MIN_DURATION_SEC = 0.12;
 const SINGLE_LINE_NEXT_GUARD_SEC = 0.01;
+const PLAYER_SUBTITLE_FONT_SCALE_OPTIONS = [1, 1.25, 1.5, 2];
+const PLAYER_SUBTITLE_FONT_SCALE_DEFAULT = 1;
+const PLAYER_SUBTITLE_FONT_SCALE_MIN = Math.min(...PLAYER_SUBTITLE_FONT_SCALE_OPTIONS);
+const PLAYER_SUBTITLE_FONT_SCALE_MAX = Math.max(...PLAYER_SUBTITLE_FONT_SCALE_OPTIONS);
 const DEFAULT_SUBTITLE_ACCEPT = ".srt,.vtt,.json";
 const ENABLE_YOUTUBE_OEMBED_TITLE_FETCH = false;
 const PLAYER_PLAYBACK_RATES = [0.5, 1, 1.25, 1.5, 2];
@@ -1465,6 +1501,7 @@ const playerAvailablePlaybackRates = ref(PLAYER_PLAYBACK_RATES.slice());
 const playerPlaybackTarget = ref(null);
 const playerPinnedSubtitleIndex = ref(-1);
 const playerIsFullscreen = ref(false);
+const playerSubtitleFontScale = ref(PLAYER_SUBTITLE_FONT_SCALE_DEFAULT);
 
 const playerCanLoadTranscript = computed(() => {
   return (
@@ -1504,6 +1541,10 @@ const canSeekPlayback = computed(() => {
   return playerHasVideo.value && playerDuration.value > 0 && !playerTranscriptLoading.value;
 });
 
+const canAdjustSubtitleFontSize = computed(() => {
+  return playerTranscriptLines.value.length > 0;
+});
+
 const playerDisplayedTime = computed(() => {
   const sourceTime =
     playerSeekPreviewTime.value == null ? playerCurrentTime.value : playerSeekPreviewTime.value;
@@ -1520,6 +1561,23 @@ const playerProgressPercent = computed(() => {
     Math.min(100, (playerDisplayedTime.value / playerDuration.value) * 100)
   );
 });
+
+const playerSubtitleStyleVars = computed(() => {
+  return {
+    "--player-subtitle-font-scale": String(playerSubtitleFontScale.value),
+  };
+});
+
+const playerPlaybackRateOptions = computed(() => {
+  return Array.from(
+    new Set([
+      ...normalizePlaybackRates(playerAvailablePlaybackRates.value),
+      Number(playerPlaybackRate.value || 1),
+    ])
+  ).sort((a, b) => a - b);
+});
+
+const playerSubtitleFontScaleOptions = PLAYER_SUBTITLE_FONT_SCALE_OPTIONS.slice();
 
 const PLAYER_SUBTITLE_SCROLL_TARGET_RATIO = 0.38;
 const PLAYER_SUBTITLE_SCROLL_MIN_RATIO = 0.2;
@@ -4141,6 +4199,28 @@ function clearPinnedSubtitleIndex() {
   playerPinnedSubtitleIndex.value = -1;
 }
 
+function normalizePlayerSubtitleFontScale(value) {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized)) {
+    return PLAYER_SUBTITLE_FONT_SCALE_DEFAULT;
+  }
+
+  const clamped = Math.max(
+    PLAYER_SUBTITLE_FONT_SCALE_MIN,
+    Math.min(PLAYER_SUBTITLE_FONT_SCALE_MAX, normalized)
+  );
+
+  return PLAYER_SUBTITLE_FONT_SCALE_OPTIONS.reduce((closest, current) => {
+    const currentDiff = Math.abs(current - clamped);
+    const closestDiff = Math.abs(closest - clamped);
+    return currentDiff < closestDiff ? current : closest;
+  }, PLAYER_SUBTITLE_FONT_SCALE_DEFAULT);
+}
+
+function setPlayerSubtitleFontScale(value) {
+  playerSubtitleFontScale.value = normalizePlayerSubtitleFontScale(value);
+}
+
 function clampPlayerTime(seconds, maxSeconds = playerDuration.value) {
   const normalizedSeconds = Number(seconds);
   const safeSeconds = Number.isFinite(normalizedSeconds) ? normalizedSeconds : 0;
@@ -4757,6 +4837,28 @@ function setPlayerPlaybackRate(rate) {
 
   englishPlayerInstance.setPlaybackRate(nextRate);
   syncPlayerPlaybackRateInfo();
+}
+
+function handlePlaybackRateMenuClick(info) {
+  const selectedRate = Number(info?.key);
+  if (!Number.isFinite(selectedRate)) {
+    return;
+  }
+
+  setPlayerPlaybackRate(selectedRate);
+}
+
+function formatSubtitleFontScaleLabel(scale) {
+  return `Text ${formatPlaybackRateLabel(scale)}`;
+}
+
+function handleSubtitleFontScaleMenuClick(info) {
+  const selectedScale = Number(info?.key);
+  if (!Number.isFinite(selectedScale)) {
+    return;
+  }
+
+  setPlayerSubtitleFontScale(selectedScale);
 }
 
 async function togglePlayerPlayPause() {
@@ -5565,7 +5667,7 @@ body {
   color: rgba(255, 255, 255, 0.92);
   padding: 0 16px;
   height: 100%;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
@@ -5790,6 +5892,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 18px;
+  flex-wrap: wrap;
 }
 
 .player-video-secondary-controls {
@@ -5797,14 +5900,6 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  flex-wrap: wrap;
-}
-
-.player-video-rate-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -5838,12 +5933,14 @@ body {
   font-size: 30px;
 }
 
-.player-rate-btn {
-  min-width: 64px;
-  height: 38px;
-  padding: 0 14px !important;
-  border-radius: 10px !important;
-  font-weight: 600;
+.player-control-trigger-btn {
+  width: 112px;
+  min-width: 112px;
+  height: 56px;
+  padding: 0 16px !important;
+  border-radius: 14px !important;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .player-secondary-btn {
@@ -5971,7 +6068,7 @@ body {
 
 .player-subtitle-text {
   color: #262626;
-  font-size: 17px;
+  font-size: calc(17px * var(--player-subtitle-font-scale, 1));
   line-height: 1.65;
   user-select: text;
   cursor: text;
@@ -6649,7 +6746,7 @@ body {
 
   .header-nav-item {
     padding: 0 10px;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .main-content {
@@ -6688,10 +6785,6 @@ body {
     gap: 12px;
   }
 
-  .player-video-rate-controls {
-    gap: 6px;
-  }
-
   .player-icon-btn {
     width: 62px;
     min-width: 62px;
@@ -6719,11 +6812,12 @@ body {
     font-size: 24px;
   }
 
-  .player-rate-btn {
-    min-width: 58px;
-    height: 34px;
-    padding: 0 10px !important;
-    font-size: 13px;
+  .player-control-trigger-btn {
+    width: 96px;
+    min-width: 96px;
+    height: 46px;
+    padding: 0 12px !important;
+    font-size: 14px;
   }
 
   .player-secondary-btn {
@@ -6762,7 +6856,7 @@ body {
   }
 
   .player-subtitle-text {
-    font-size: 16px;
+    font-size: calc(16px * var(--player-subtitle-font-scale, 1));
   }
 
   .home-entry-row {
@@ -7064,7 +7158,7 @@ body {
 
   .header-nav-item {
     padding: 0 8px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .section-header h2 {
