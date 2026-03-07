@@ -661,7 +661,7 @@
             />
 
             <div class="player-content">
-              <div class="player-video-panel">
+              <div ref="playerVideoPanelRef" class="player-video-panel">
                 <div class="player-video-wrapper">
                   <video
                     v-if="playerHasVideo"
@@ -744,10 +744,17 @@
                   <div class="player-video-secondary-controls">
                     <a-button
                       class="player-secondary-btn"
-                      :type="playerAbSelectionMode ? 'primary' : 'default'"
-                      @click="toggleAbSelectionMode"
+                      :disabled="!playerHasVideo"
+                      @click="togglePlayerFullscreen"
                     >
-                      AB Loop
+                      {{ playerIsFullscreen ? "Exit Fullscreen" : "Fullscreen" }}
+                    </a-button>
+                    <a-button
+                      class="player-secondary-btn"
+                      :type="playerAbSelectionMode || canPlayAbRange ? 'primary' : 'default'"
+                      @click="handleAbControlClick"
+                    >
+                      {{ playerAbSelectionMode ? "Cancel AB" : canPlayAbRange ? "Clear AB" : "Set AB" }}
                     </a-button>
                     <a-button
                       class="player-secondary-btn"
@@ -767,7 +774,7 @@
                     </a-button>
                   </div>
                   <span v-if="playerAbSelectionMode" class="player-ab-hint">
-                    Select two subtitle lines as A / B (click AB Loop again to exit)
+                    Select two subtitle lines as A / B. Then press Play to loop, or Copy AB to copy.
                   </span>
                   <span
                     v-else-if="canPlayAbRange"
@@ -775,6 +782,7 @@
                   >
                     A {{ formatSubtitleTime(playerTranscriptLines[playerAbStartIndex]?.start) }}
                     · B {{ formatSubtitleTime(playerTranscriptLines[playerAbEndIndex]?.start) }}
+                    · Press Play to loop, or Copy AB to copy
                   </span>
                 </div>
               </div>
@@ -803,29 +811,28 @@
                     v-for="(line, idx) in playerTranscriptLines"
                     :key="`${line.start}-${idx}`"
                     :data-sub-index="idx"
+                    :data-ab-marker="getAbMarkerLabel(idx)"
                     class="player-subtitle-item"
                     :class="{
                       active: idx === activePlayerSubtitleIndex,
                       'in-ab-range': isIndexInAbRange(idx),
                       'ab-select-mode': playerAbSelectionMode,
+                      'ab-candidate': isAbCandidate(idx),
+                      'ab-point-start': idx === playerAbStartIndex,
+                      'ab-point-end': idx === playerAbEndIndex,
                     }"
+                    :title="playerAbSelectionMode ? 'Select this subtitle line for AB playback' : undefined"
+                    :tabindex="playerAbSelectionMode ? 0 : undefined"
+                    @click="handleSubtitleItemClick(idx)"
+                    @keydown.enter.prevent="handleSubtitleItemClick(idx)"
+                    @keydown.space.prevent="handleSubtitleItemClick(idx)"
                   >
-                    <div
-                      v-if="playerAbSelectionMode"
-                      class="player-ab-select-cell"
-                      @click.stop
-                    >
-                      <a-checkbox
-                        :checked="isAbCandidate(idx)"
-                        @change="toggleAbCandidate(idx)"
-                      />
-                    </div>
                     <div
                       class="player-subtitle-time"
                       role="button"
                       tabindex="0"
                       :title="playerAbSelectionMode ? 'Use this line for AB selection' : 'Play this subtitle line'"
-                      @click="handleSubtitleTimeClick(line, idx)"
+                      @click.stop="handleSubtitleTimeClick(line, idx)"
                       @keydown.enter.prevent="handleSubtitleTimeClick(line, idx)"
                       @keydown.space.prevent="handleSubtitleTimeClick(line, idx)"
                     >
@@ -1241,12 +1248,14 @@ watch(youtubeUrl, (newUrl) => {
 });
 
 const tedFilteredResults = computed(() => {
+  const unmasteredResults = tedResults.value.filter((item) => !item.mastered);
+
   if (!tedSelectedTagFilter.value) {
-    return tedResults.value;
+    return unmasteredResults;
   }
 
   if (tedSelectedTagFilter.value === WORD_TAG_OFF_LIST) {
-    return tedResults.value.filter((item) => {
+    return unmasteredResults.filter((item) => {
       return (
         !item.tags.includes(WORD_TAG_TOP_3000) &&
         !item.tags.includes(WORD_TAG_TOP_5000) &&
@@ -1256,10 +1265,20 @@ const tedFilteredResults = computed(() => {
     });
   }
 
-  return tedResults.value.filter((item) =>
+  return unmasteredResults.filter((item) =>
     item.tags.includes(tedSelectedTagFilter.value)
   );
 });
+
+function clampTedPaginationPage() {
+  const pageSize = Math.max(1, Number(tedPagination.value.pageSize) || 20);
+  const maxPage = Math.max(1, Math.ceil(tedFilteredResults.value.length / pageSize));
+  const currentPage = Math.max(1, Number(tedPagination.value.current) || 1);
+
+  if (currentPage > maxPage) {
+    tedPagination.value.current = maxPage;
+  }
+}
 
 const tedTagCounts = computed(() => {
   const counts = {
@@ -1406,6 +1425,7 @@ const playerHasVideo = ref(false);
 const playerTranscriptLines = ref([]);
 const playerCurrentTime = ref(0);
 const playerSubtitleListRef = ref(null);
+const playerVideoPanelRef = ref(null);
 const playerVideoRef = ref(null);
 const playerAbStartIndex = ref(-1);
 const playerAbEndIndex = ref(-1);
@@ -1416,6 +1436,7 @@ const playerPlaybackRate = ref(1);
 const playerAvailablePlaybackRates = ref(PLAYER_PLAYBACK_RATES.slice());
 const playerPlaybackTarget = ref(null);
 const playerPinnedSubtitleIndex = ref(-1);
+const playerIsFullscreen = ref(false);
 
 const playerCanLoadTranscript = computed(() => {
   return (
@@ -1562,13 +1583,9 @@ watch(homeYoutubeUrl, (newUrl) => {
   homeParsedLines.value = [];
 });
 
-watch(playerAbSelectionMode, () => {
-  playerPlaybackTarget.value = null;
-  playerAbSelectionCandidates.value = [];
-});
-
 watch(currentPage, async (newPage, oldPage) => {
   if (oldPage === "player" && newPage !== "player") {
+    await exitPlayerFullscreen();
     playerPlaybackTarget.value = null;
     if (englishPlayerInstance && typeof englishPlayerInstance.pauseVideo === "function") {
       englishPlayerInstance.pauseVideo();
@@ -1642,6 +1659,13 @@ watch(activePlayerSubtitleIndex, (index, prev) => {
   keepActiveSubtitleInComfortZone(index);
 });
 
+watch(
+  [() => tedFilteredResults.value.length, () => tedPagination.value.pageSize],
+  () => {
+    clampTedPaginationPage();
+  }
+);
+
 onMounted(async () => {
   loadMasteredWordsFromStorage();
   loadPlayerHistory();
@@ -1650,6 +1674,8 @@ onMounted(async () => {
   await tryLoadWordLabelsFromLocalIfNeeded();
   ensureSetupModalState();
   await loadLearningProgress();
+  document.addEventListener("fullscreenchange", syncPlayerFullscreenState);
+  document.addEventListener("webkitfullscreenchange", syncPlayerFullscreenState);
   window.addEventListener("keydown", handlePlayerKeyboardShortcuts);
 });
 
@@ -1671,6 +1697,8 @@ onUnmounted(() => {
     chartResizeHandler = null;
   }
   destroyEnglishPlayer();
+  document.removeEventListener("fullscreenchange", syncPlayerFullscreenState);
+  document.removeEventListener("webkitfullscreenchange", syncPlayerFullscreenState);
   window.removeEventListener("keydown", handlePlayerKeyboardShortcuts);
 });
 
@@ -4371,6 +4399,12 @@ function resumeAbRangePlayback() {
     if (!Number.isNaN(currentTime) && currentTime >= resumeThreshold) {
       englishPlayerInstance.seekTo(Number(target.start || 0), true);
       playerCurrentTime.value = Number(target.start || 0);
+    } else if (
+      !Number.isNaN(currentTime) &&
+      (currentTime < Number(target.start || 0) || currentTime > Number(target.end || 0))
+    ) {
+      englishPlayerInstance.seekTo(Number(target.start || 0), true);
+      playerCurrentTime.value = Number(target.start || 0);
     }
   }
 
@@ -4449,16 +4483,35 @@ async function copyAbSubtitleRange() {
 }
 
 function isAbCandidate(index) {
-  return playerAbSelectionCandidates.value.includes(index);
+  return playerAbSelectionMode.value && playerAbSelectionCandidates.value.includes(index);
 }
 
-function toggleAbSelectionMode() {
+function getAbMarkerLabel(index) {
+  if (index === playerAbStartIndex.value) {
+    return "A";
+  }
+
+  if (index === playerAbEndIndex.value) {
+    return "B";
+  }
+
+  return "";
+}
+
+function handleAbControlClick() {
   if (!playerTranscriptLines.value.length) return;
 
   if (playerAbSelectionMode.value) {
     clearAbSelection();
     playerPlaybackTarget.value = null;
-    message.info("Exited AB mode.");
+    message.info("Cancelled AB selection.");
+    return;
+  }
+
+  if (canPlayAbRange.value) {
+    clearAbSelection();
+    playerPlaybackTarget.value = null;
+    message.info("Cleared the AB range.");
     return;
   }
 
@@ -4475,6 +4528,9 @@ function toggleAbCandidate(index) {
   if (existing >= 0) {
     current.splice(existing, 1);
     playerAbSelectionCandidates.value = current;
+    playerAbStartIndex.value = -1;
+    playerAbEndIndex.value = -1;
+    playerPlaybackTarget.value = null;
     return;
   }
 
@@ -4488,8 +4544,19 @@ function toggleAbCandidate(index) {
     const [first, second] = current;
     playerAbStartIndex.value = Math.min(first, second);
     playerAbEndIndex.value = Math.max(first, second);
-    void playAbRange();
+    playerAbSelectionCandidates.value = [];
+    playerAbSelectionMode.value = false;
+    playerPlaybackTarget.value = null;
+    message.info("AB range ready. Press Play to loop or Copy AB to copy.");
   }
+}
+
+function handleSubtitleItemClick(index) {
+  if (!playerAbSelectionMode.value) {
+    return;
+  }
+
+  toggleAbCandidate(index);
 }
 
 async function playPrevSubtitle() {
@@ -4567,13 +4634,18 @@ async function togglePlayerPlayPause() {
       return;
     }
 
-    if (resumeAbRangePlayback()) {
-      return;
-    }
+  if (resumeAbRangePlayback()) {
+    return;
+  }
 
-    clearPinnedSubtitleIndex();
-    playerPlaybackTarget.value = null;
-    englishPlayerInstance.playVideo();
+  if (canPlayAbRange.value && !playerAbSelectionMode.value) {
+    await playAbRange();
+    return;
+  }
+
+  clearPinnedSubtitleIndex();
+  playerPlaybackTarget.value = null;
+  englishPlayerInstance.playVideo();
     return;
   }
 
@@ -4598,6 +4670,11 @@ async function togglePlayerPlayPause() {
   }
 
   if (resumeAbRangePlayback()) {
+    return;
+  }
+
+  if (canPlayAbRange.value && !playerAbSelectionMode.value) {
+    await playAbRange();
     return;
   }
 
@@ -4637,6 +4714,107 @@ function handlePlayerKeyboardShortcuts(event) {
   if (event.key === "ArrowRight") {
     event.preventDefault();
     void playNextSubtitle();
+  }
+}
+
+function getFullscreenElement() {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function syncPlayerFullscreenState() {
+  const fullscreenElement = getFullscreenElement();
+  const panelEl = playerVideoPanelRef.value;
+  const videoEl = playerVideoRef.value;
+  const isVideoNativeFullscreen = Boolean(
+    videoEl &&
+    typeof videoEl.webkitDisplayingFullscreen === "boolean" &&
+    videoEl.webkitDisplayingFullscreen
+  );
+
+  playerIsFullscreen.value = Boolean(
+    fullscreenElement &&
+      (fullscreenElement === panelEl || fullscreenElement === videoEl)
+  ) || isVideoNativeFullscreen;
+}
+
+async function exitPlayerFullscreen() {
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  const videoEl = playerVideoRef.value;
+  const fullscreenElement = getFullscreenElement();
+
+  if (fullscreenElement && typeof document.exitFullscreen === "function") {
+    await document.exitFullscreen();
+    return true;
+  }
+
+  if (fullscreenElement && typeof document.webkitExitFullscreen === "function") {
+    document.webkitExitFullscreen();
+    return true;
+  }
+
+  if (
+    videoEl &&
+    typeof videoEl.webkitExitFullscreen === "function" &&
+    typeof videoEl.webkitDisplayingFullscreen === "boolean" &&
+    videoEl.webkitDisplayingFullscreen
+  ) {
+    videoEl.webkitExitFullscreen();
+    return true;
+  }
+
+  return false;
+}
+
+async function togglePlayerFullscreen() {
+  if (!playerHasVideo.value) {
+    return;
+  }
+
+  const panelEl = playerVideoPanelRef.value;
+  const videoEl = playerVideoRef.value;
+
+  try {
+    if (playerIsFullscreen.value) {
+      await exitPlayerFullscreen();
+      syncPlayerFullscreenState();
+      return;
+    }
+
+    if (panelEl && typeof panelEl.requestFullscreen === "function") {
+      await panelEl.requestFullscreen();
+      syncPlayerFullscreenState();
+      return;
+    }
+
+    if (panelEl && typeof panelEl.webkitRequestFullscreen === "function") {
+      panelEl.webkitRequestFullscreen();
+      syncPlayerFullscreenState();
+      return;
+    }
+
+    if (videoEl && typeof videoEl.requestFullscreen === "function") {
+      await videoEl.requestFullscreen();
+      syncPlayerFullscreenState();
+      return;
+    }
+
+    if (videoEl && typeof videoEl.webkitEnterFullscreen === "function") {
+      videoEl.webkitEnterFullscreen();
+      syncPlayerFullscreenState();
+      return;
+    }
+
+    message.info("Fullscreen is not supported in this browser.");
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    message.error(`Failed to toggle fullscreen: ${errorMsg}`);
   }
 }
 
@@ -4722,12 +4900,20 @@ function attachPlayerVideoEvents(videoEl) {
     playerIsPlaying.value = false;
     playerPlaybackTarget.value = null;
   };
+  const handleWebkitBeginFullscreen = () => {
+    playerIsFullscreen.value = true;
+  };
+  const handleWebkitEndFullscreen = () => {
+    playerIsFullscreen.value = false;
+  };
 
   videoEl.addEventListener("loadedmetadata", handleLoadedMetadata);
   videoEl.addEventListener("play", handlePlay);
   videoEl.addEventListener("pause", handlePause);
   videoEl.addEventListener("ratechange", handleRateChange);
   videoEl.addEventListener("ended", handleEnded);
+  videoEl.addEventListener("webkitbeginfullscreen", handleWebkitBeginFullscreen);
+  videoEl.addEventListener("webkitendfullscreen", handleWebkitEndFullscreen);
 
   playerVideoEventCleanup = () => {
     videoEl.removeEventListener("loadedmetadata", handleLoadedMetadata);
@@ -4735,6 +4921,8 @@ function attachPlayerVideoEvents(videoEl) {
     videoEl.removeEventListener("pause", handlePause);
     videoEl.removeEventListener("ratechange", handleRateChange);
     videoEl.removeEventListener("ended", handleEnded);
+    videoEl.removeEventListener("webkitbeginfullscreen", handleWebkitBeginFullscreen);
+    videoEl.removeEventListener("webkitendfullscreen", handleWebkitEndFullscreen);
   };
 }
 
@@ -5438,6 +5626,7 @@ body {
   grid-template-columns: 60px 1fr;
   gap: 12px;
   align-items: start;
+  position: relative;
   padding: 10px 12px;
   border: 1px solid #e8e8e8;
   border-radius: 8px;
@@ -5447,7 +5636,7 @@ body {
 }
 
 .player-subtitle-item.ab-select-mode {
-  grid-template-columns: 28px 60px 1fr;
+  cursor: pointer;
 }
 
 .player-subtitle-item:hover {
@@ -5455,9 +5644,16 @@ body {
   background: #f5faff;
 }
 
+.player-subtitle-item.ab-candidate {
+  border-color: #69b1ff;
+  background: #f0f7ff;
+}
+
 .player-subtitle-item.active {
   border-color: #1890ff;
   background: #e6f7ff;
+  outline: 2px solid rgba(24, 144, 255, 0.24);
+  outline-offset: 1px;
 }
 
 .player-subtitle-item.in-ab-range {
@@ -5465,9 +5661,53 @@ body {
   background: #f6ffed;
 }
 
+.player-subtitle-item.ab-point-start {
+  border-color: #faad14;
+  background: #fff7e6;
+  box-shadow: inset 4px 0 0 #faad14;
+}
+
+.player-subtitle-item.ab-point-end {
+  border-color: #722ed1;
+  background: #f9f0ff;
+  box-shadow: inset 4px 0 0 #722ed1;
+}
+
+.player-subtitle-item[data-ab-marker="A"]::after,
+.player-subtitle-item[data-ab-marker="B"]::after {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.player-subtitle-item[data-ab-marker="A"]::after {
+  content: "A";
+  background: #faad14;
+}
+
+.player-subtitle-item[data-ab-marker="B"]::after {
+  content: "B";
+  background: #722ed1;
+}
+
+.player-subtitle-item.ab-select-mode:focus-visible {
+  outline: 2px solid #69b1ff;
+  outline-offset: 2px;
+}
+
 .player-subtitle-time {
   color: #1890ff;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   padding-top: 2px;
   cursor: pointer;
@@ -5482,10 +5722,22 @@ body {
 
 .player-subtitle-text {
   color: #262626;
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 17px;
+  line-height: 1.65;
   user-select: text;
   cursor: text;
+}
+
+.player-subtitle-item.ab-select-mode .player-subtitle-text {
+  cursor: pointer;
+}
+
+.player-video-panel:fullscreen,
+.player-video-panel:-webkit-full-screen {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: 0;
 }
 
 .player-unknown-word {
@@ -5495,12 +5747,6 @@ body {
   padding: 0 4px;
   margin: 0 1px;
   font-weight: 500;
-}
-
-.player-ab-select-cell {
-  display: flex;
-  justify-content: center;
-  padding-top: 2px;
 }
 
 .player-subtitle-empty {
@@ -6257,12 +6503,8 @@ body {
     padding: 9px 10px;
   }
 
-  .player-subtitle-item.ab-select-mode {
-    grid-template-columns: 24px 52px 1fr;
-  }
-
   .player-subtitle-text {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .home-entry-row {
