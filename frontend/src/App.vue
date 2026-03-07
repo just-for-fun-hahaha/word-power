@@ -675,6 +675,27 @@
                   </div>
                 </div>
                 <div class="player-video-controls">
+                  <div class="player-progress-row">
+                    <span class="player-progress-time">
+                      {{ formatPlayerClock(playerDisplayedTime) }}
+                    </span>
+                    <input
+                      class="player-progress-slider"
+                      type="range"
+                      min="0"
+                      :max="playerDuration || 0"
+                      step="0.1"
+                      :value="canSeekPlayback ? playerDisplayedTime : 0"
+                      :disabled="!canSeekPlayback"
+                      :style="{ '--player-progress-percent': `${playerProgressPercent}%` }"
+                      aria-label="Playback progress"
+                      @input="handlePlayerProgressInput"
+                      @change="handlePlayerProgressCommit"
+                    />
+                    <span class="player-progress-time">
+                      {{ formatPlayerClock(playerDuration) }}
+                    </span>
+                  </div>
                   <div class="player-video-main-controls">
                     <a-button
                       class="player-icon-btn player-icon-btn-edge"
@@ -1424,6 +1445,8 @@ const playerIframeReady = ref(false);
 const playerHasVideo = ref(false);
 const playerTranscriptLines = ref([]);
 const playerCurrentTime = ref(0);
+const playerDuration = ref(0);
+const playerSeekPreviewTime = ref(null);
 const playerSubtitleListRef = ref(null);
 const playerVideoPanelRef = ref(null);
 const playerVideoRef = ref(null);
@@ -1470,6 +1493,27 @@ const canJumpSubtitle = computed(() => {
 
 const canAnalyzeCurrentPlayerSubtitle = computed(() => {
   return !!playerParsedYoutubeUrl.value && playerTranscriptLines.value.length > 0;
+});
+
+const canSeekPlayback = computed(() => {
+  return playerHasVideo.value && playerDuration.value > 0 && !playerTranscriptLoading.value;
+});
+
+const playerDisplayedTime = computed(() => {
+  const sourceTime =
+    playerSeekPreviewTime.value == null ? playerCurrentTime.value : playerSeekPreviewTime.value;
+  return clampPlayerTime(sourceTime);
+});
+
+const playerProgressPercent = computed(() => {
+  if (playerDuration.value <= 0) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.min(100, (playerDisplayedTime.value / playerDuration.value) * 100)
+  );
 });
 
 const PLAYER_SUBTITLE_SCROLL_TARGET_RATIO = 0.38;
@@ -4092,6 +4136,43 @@ function clearPinnedSubtitleIndex() {
   playerPinnedSubtitleIndex.value = -1;
 }
 
+function clampPlayerTime(seconds, maxSeconds = playerDuration.value) {
+  const normalizedSeconds = Number(seconds);
+  const safeSeconds = Number.isFinite(normalizedSeconds) ? normalizedSeconds : 0;
+  const normalizedMax = Number(maxSeconds);
+  const safeMax =
+    Number.isFinite(normalizedMax) && normalizedMax > 0 ? normalizedMax : Number.POSITIVE_INFINITY;
+
+  return Math.max(0, Math.min(safeSeconds, safeMax));
+}
+
+function syncPlayerTimelineInfo() {
+  let duration = NaN;
+
+  if (
+    englishPlayerInstance &&
+    typeof englishPlayerInstance.getDuration === "function"
+  ) {
+    duration = Number(englishPlayerInstance.getDuration());
+  }
+
+  if ((!Number.isFinite(duration) || duration <= 0) && playerVideoRef.value instanceof HTMLVideoElement) {
+    duration = Number(playerVideoRef.value.duration);
+  }
+
+  playerDuration.value = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  playerCurrentTime.value = clampPlayerTime(playerCurrentTime.value);
+
+  if (playerSeekPreviewTime.value != null) {
+    playerSeekPreviewTime.value = clampPlayerTime(playerSeekPreviewTime.value);
+  }
+}
+
+function getProgressEventValue(event) {
+  const rawValue = event?.target?.value;
+  return clampPlayerTime(rawValue);
+}
+
 function formatPlaybackRateLabel(rate) {
   const normalized = Number(rate || 1);
   return `${Number.isInteger(normalized) ? normalized.toFixed(0) : normalized}x`;
@@ -4291,6 +4372,57 @@ async function seekAndPlay(seconds) {
   englishPlayerInstance.playVideo();
   playerCurrentTime.value = start;
   return true;
+}
+
+async function seekPlayerToTime(seconds) {
+  const targetTime = clampPlayerTime(seconds);
+
+  if (hasPlayerApiMethods() && englishPlayerInstance) {
+    englishPlayerInstance.seekTo(targetTime, true);
+    playerCurrentTime.value = targetTime;
+    clearPinnedSubtitleIndex();
+    playerPlaybackTarget.value = null;
+    return true;
+  }
+
+  const ready = await ensurePlayerReady();
+  if (!ready || !englishPlayerInstance) {
+    message.warning(
+      playerInitError.value
+        ? `Player not ready: ${playerInitError.value}`
+        : "Player not ready"
+    );
+    return false;
+  }
+
+  englishPlayerInstance.seekTo(targetTime, true);
+  playerCurrentTime.value = targetTime;
+  clearPinnedSubtitleIndex();
+  playerPlaybackTarget.value = null;
+  return true;
+}
+
+function handlePlayerProgressInput(event) {
+  if (!canSeekPlayback.value) {
+    return;
+  }
+
+  playerSeekPreviewTime.value = getProgressEventValue(event);
+}
+
+async function handlePlayerProgressCommit(event) {
+  const targetTime = getProgressEventValue(event);
+  playerSeekPreviewTime.value = targetTime;
+
+  try {
+    if (!canSeekPlayback.value) {
+      return;
+    }
+
+    await seekPlayerToTime(targetTime);
+  } finally {
+    playerSeekPreviewTime.value = null;
+  }
 }
 
 function resolveSingleLinePlaybackEnd(line, index = -1) {
@@ -4838,6 +4970,7 @@ function startEnglishPlayerTimer() {
       const currentTime = Number(englishPlayerInstance.getCurrentTime());
       if (!Number.isNaN(currentTime)) {
         playerCurrentTime.value = currentTime;
+        syncPlayerTimelineInfo();
         handlePlaybackBoundary(currentTime);
       }
     }
@@ -4884,6 +5017,7 @@ function attachPlayerVideoEvents(videoEl) {
     playerIframeReady.value = true;
     playerCurrentTime.value = Number(videoEl.currentTime || 0);
     playerIsPlaying.value = !videoEl.paused;
+    syncPlayerTimelineInfo();
     syncPlayerPlaybackRateInfo();
   };
   const handlePlay = () => {
@@ -4900,6 +5034,9 @@ function attachPlayerVideoEvents(videoEl) {
     playerIsPlaying.value = false;
     playerPlaybackTarget.value = null;
   };
+  const handleDurationChange = () => {
+    syncPlayerTimelineInfo();
+  };
   const handleWebkitBeginFullscreen = () => {
     playerIsFullscreen.value = true;
   };
@@ -4912,6 +5049,7 @@ function attachPlayerVideoEvents(videoEl) {
   videoEl.addEventListener("pause", handlePause);
   videoEl.addEventListener("ratechange", handleRateChange);
   videoEl.addEventListener("ended", handleEnded);
+  videoEl.addEventListener("durationchange", handleDurationChange);
   videoEl.addEventListener("webkitbeginfullscreen", handleWebkitBeginFullscreen);
   videoEl.addEventListener("webkitendfullscreen", handleWebkitEndFullscreen);
 
@@ -4921,6 +5059,7 @@ function attachPlayerVideoEvents(videoEl) {
     videoEl.removeEventListener("pause", handlePause);
     videoEl.removeEventListener("ratechange", handleRateChange);
     videoEl.removeEventListener("ended", handleEnded);
+    videoEl.removeEventListener("durationchange", handleDurationChange);
     videoEl.removeEventListener("webkitbeginfullscreen", handleWebkitBeginFullscreen);
     videoEl.removeEventListener("webkitendfullscreen", handleWebkitEndFullscreen);
   };
@@ -4939,6 +5078,9 @@ function createLocalVideoPlayer(videoEl) {
     },
     getCurrentTime() {
       return Number(videoEl.currentTime || 0);
+    },
+    getDuration() {
+      return Number(videoEl.duration || 0);
     },
     getAvailablePlaybackRates() {
       return PLAYER_PLAYBACK_RATES.slice();
@@ -4961,6 +5103,9 @@ function destroyEnglishPlayer() {
   stopEnglishPlayerTimer();
   playerMountPromise = null;
   playerIframeReady.value = false;
+  playerDuration.value = 0;
+  playerSeekPreviewTime.value = null;
+  playerCurrentTime.value = 0;
   clearPinnedSubtitleIndex();
   detachPlayerVideoEvents();
   if (englishPlayerInstance && typeof englishPlayerInstance.destroy === "function") {
@@ -5288,6 +5433,19 @@ function formatSubtitleTime(seconds) {
   const restSeconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
 }
+
+function formatPlayerClock(seconds) {
+  const totalSeconds = Math.max(0, Math.floor(Number(seconds || 0)));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const restSeconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
+  }
+
+  return `${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
+}
 </script>
 
 <style>
@@ -5534,6 +5692,76 @@ body {
   border-radius: 14px;
   background: #f7fbff;
   border: 1px solid #dbe9ff;
+}
+
+.player-progress-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-progress-time {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1f3f6b;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-progress-slider {
+  --player-progress-percent: 0%;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  outline: none;
+  appearance: none;
+  background: linear-gradient(
+    90deg,
+    #1677ff 0%,
+    #1677ff var(--player-progress-percent),
+    rgba(22, 119, 255, 0.16) var(--player-progress-percent),
+    rgba(22, 119, 255, 0.16) 100%
+  );
+  cursor: pointer;
+}
+
+.player-progress-slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.player-progress-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.player-progress-slider::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  appearance: none;
+  background: #1677ff;
+  box-shadow: 0 2px 6px rgba(22, 119, 255, 0.28);
+}
+
+.player-progress-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.player-progress-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #1677ff;
+  box-shadow: 0 2px 6px rgba(22, 119, 255, 0.28);
 }
 
 .player-video-main-controls {
@@ -6424,6 +6652,15 @@ body {
     width: 100%;
     padding: 10px 10px 12px;
     gap: 10px;
+  }
+
+  .player-progress-row {
+    grid-template-columns: 52px minmax(0, 1fr) 52px;
+    gap: 8px;
+  }
+
+  .player-progress-time {
+    font-size: 11px;
   }
 
   .player-video-main-controls {
