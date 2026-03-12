@@ -4,7 +4,7 @@
 - 输入 YouTube 链接
 - 导入本地字幕（`.srt/.vtt/.json`）
 - 进入播放器做句子级跟读与 AB 练习
-- 对当前字幕做词汇分析、标记已掌握词、查看学习统计
+- 对当前字幕做词汇分析、标记熟悉度（1 到 5 星）、查看学习统计
 
 ## 部署方式
 
@@ -30,7 +30,7 @@ word-power/
 │   └── src/App.vue              # 主应用（播放器 + 词汇学习）
 ├── scripts/
 │   └── download_youtube_subtitles.py  # 按链接下载字幕到本地
-├── mastered_words.csv           # 历史掌握词示例数据
+├── mastered_words.csv           # 旧版 5 星掌握词示例数据（仍兼容导入）
 └── word_labels.csv              # 词表源文件
 ```
 
@@ -89,7 +89,7 @@ make pages-build
 
 1. 首次打开页面：
    - 词表会优先自动读取同目录 `word_labels.csv`（失败时再手动上传）
-   - 学习数据文件（JSON 或 `mastered_words.csv`）需手动导入
+   - 学习数据文件（`learning_data.csv` 或旧版 `mastered_words.csv`）需手动导入
 2. 系统会显示当前“词表版本”和“学习数据版本”（使用文件名作为版本标识）。
 3. 首页输入 YouTube 链接并选择本地字幕文件（`.srt/.vtt/.json`）。
 4. 点击“开始解析”，解析成功后点击“开始学习”。
@@ -98,10 +98,11 @@ make pages-build
 ## 学习数据持久化（浏览器）
 
 - 默认存储：`localStorage`
-- 上传后版本名固定为：`word_labels.csv`、`mastered_words.csv` / `learning_data.csv`（新上传会覆盖旧数据）
-- 可导出：`导出学习数据`（CSV，含掌握词 + 视频历史）、`导出掌握词CSV`（兼容 `mastered_words.csv`）
+- 学习数据会保存单词熟悉度与最近设置日期，5 星仍视为“已掌握”
+- 上传后版本名使用导入文件名显示，新上传会覆盖旧数据
+- 可导出：`导出学习数据`（CSV，格式为 `word,familiarity,updated_at`）
 - 导出文件名会自动附加导出时间戳（`YYYYMMDD-HHmmss`），便于备份识别
-- 可导入：`learning_data.csv`、`mastered_words.csv`（`word,date`）
+- 可导入：新版 `learning_data.csv`（`word,familiarity,updated_at`）和旧版 `mastered_words.csv`（`word,date`）
 
 跨设备迁移方式：在旧设备导出，再在新设备导入。
 

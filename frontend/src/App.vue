@@ -26,6 +26,13 @@
               </button>
               <button
                 class="header-nav-item"
+                :class="{ active: currentPage === 'familiarity' }"
+                @click="goFamiliarityPage"
+              >
+                Familiarity
+              </button>
+              <button
+                class="header-nav-item"
                 :class="{ active: currentPage === 'ted' && showStatsPage }"
                 @click="goTedStatsPage"
               >
@@ -280,8 +287,15 @@
             <div v-else class="content-wrapper">
             <!-- 左侧：表格区域 -->
             <div class="table-section">
-              <div class="section-header">
-                <h2>Word List</h2>
+              <div class="section-header section-header-row">
+                <div>
+                  <h2>Word List</h2>
+                  <p>5-star words are hidden by default.</p>
+                </div>
+                <label class="section-toggle">
+                  <span>Show 5-Star</span>
+                  <a-switch v-model:checked="tedShowFiveStarWords" size="small" />
+                </label>
               </div>
 
               <a-table
@@ -294,56 +308,26 @@
                 :row-class-name="(record) => (record.mastered ? 'mastered-row' : '')"
                 @change="handleTedTableChange"
               >
-                <template #headerCell="{ column }">
-                  <template v-if="column.key === 'word'">
-                    <div style="display: flex; align-items: center; gap: 8px">
-                      <a-button
-                        type="link"
-                        size="default"
-                        title="Mark all words on this page as mastered"
-                        @click="markTedCurrentPageMastered"
-                        style="padding: 0; height: auto; font-size: 16px"
-                      >
-                        <CheckCircleOutlined style="color: #52c41a; font-size: 18px;" />
-                      </a-button>
-                      <span>Word</span>
-                    </div>
-                  </template>
-                </template>
                 <template #bodyCell="{ column, record, index }">
                   <template v-if="column.key === 'index'">
                     {{ (tedPagination.current - 1) * tedPagination.pageSize + index + 1 }}
                   </template>
                   <template v-if="column.key === 'word'">
-                    <div
-                      style="display: flex; align-items: center; gap: 8px"
-                      :style="record.mastered ? { opacity: 0.5 } : {}"
-                    >
-                      <a-button
-                        v-if="!record.mastered"
-                        type="text"
-                        size="small"
-                        title="Mark as mastered"
-                        @click="markWordMastered(record.word)"
-                        style="padding: 0; min-width: auto; flex-shrink: 0;"
-                      >
-                        <template #icon>
-                          <CheckCircleOutlined style="color: #52c41a" />
-                        </template>
-                      </a-button>
-                      <a-button
-                        v-else
-                        type="text"
-                        size="small"
-                        title="Remove mastered mark"
-                        @click="unmarkWordMastered(record.word)"
-                        style="padding: 0; min-width: auto; flex-shrink: 0;"
-                      >
-                        <template #icon>
-                          <CheckCircleFilled style="color: #999" />
-                        </template>
-                      </a-button>
+                    <div :style="record.mastered ? { opacity: 0.5 } : {}">
                       <strong style="font-size: 20px; font-weight: 600;">{{ record.word }}</strong>
+                    </div>
+                  </template>
+                  <template v-if="column.key === 'familiarity'">
+                    <div class="ted-familiarity-cell">
+                      <a-rate
+                        :value="record.familiarity"
+                        :count="5"
+                        allow-clear
+                        @change="handleWordFamiliarityChange(record.word, $event)"
+                      />
+                      <span class="ted-familiarity-text">
+                        {{ formatFamiliarityLabel(record.familiarity) }}
+                      </span>
                     </div>
                   </template>
                   <template v-if="column.key === 'tags'">
@@ -602,44 +586,6 @@
                         {{ tedDifficultyAssessment.personal.description }}
                       </div>
                     </div>
-
-                    <div class="difficulty-summary-card difficulty-summary-card-fit">
-                      <div class="difficulty-card-header">
-                        <span class="difficulty-card-label">i+1 Fit</span>
-                        <span :class="getDifficultyBadgeClass(tedDifficultyAssessment.fit.key)">
-                          {{ tedDifficultyAssessment.fit.label }}
-                        </span>
-                      </div>
-                      <div class="difficulty-card-score-row">
-                        <div class="difficulty-fit-value">
-                          {{ tedDifficultyAssessment.fit.levelText }}
-                        </div>
-                        <div class="difficulty-card-score-caption">
-                          正中 = 刚好 i+1
-                        </div>
-                      </div>
-                      <div class="difficulty-bar-block">
-                        <div class="difficulty-bar difficulty-bar-fit">
-                          <div class="difficulty-bar-center-line"></div>
-                          <div
-                            class="difficulty-bar-marker difficulty-bar-marker-fit"
-                            :style="getDifficultyBarMarkerStyle(tedDifficultyAssessment.fit.position)"
-                          ></div>
-                        </div>
-                        <div class="difficulty-bar-scale">
-                          <span>i / i-1</span>
-                          <span>i+1</span>
-                          <span>i+2+</span>
-                        </div>
-                      </div>
-                      <div class="difficulty-card-desc">
-                        {{ tedDifficultyAssessment.fit.description }}
-                      </div>
-                      <div class="difficulty-fit-subvalue">
-                        {{ tedDifficultyAssessment.fit.secondaryValue }} ·
-                        {{ tedDifficultyAssessment.fit.recommendation }}
-                      </div>
-                    </div>
                   </div>
 
                   <div class="difficulty-insight">
@@ -649,6 +595,122 @@
               </div>
             </div>
           </div>
+          </div>
+
+          <div v-if="currentPage === 'familiarity'" class="familiarity-page">
+            <div class="familiarity-overview-card">
+              <div class="section-header">
+                <h2>Familiarity Review</h2>
+                <p>Browse your 1-star to 4-star words and adjust their level anytime.</p>
+              </div>
+              <div class="familiarity-filter-grid">
+                <button
+                  v-for="filterKey in REVIEW_FAMILIARITY_FILTERS"
+                  :key="`review-filter-${filterKey}`"
+                  type="button"
+                  class="familiarity-filter-card"
+                  :class="{ active: familiarityReviewSelectedStar === filterKey }"
+                  @click="selectFamiliarityReviewStar(filterKey)"
+                >
+                  <div class="familiarity-filter-top">
+                    <span class="familiarity-filter-title">
+                      {{ getFamiliarityReviewFilterTitle(filterKey) }}
+                    </span>
+                    <span class="familiarity-filter-count">
+                      {{ familiarityReviewCounts[filterKey] || 0 }}
+                    </span>
+                  </div>
+                  <div
+                    v-if="filterKey === REVIEW_FAMILIARITY_ALL_KEY"
+                    class="familiarity-filter-all-badge"
+                  >
+                    1-4 Stars
+                  </div>
+                  <a-rate v-else :value="filterKey" :count="5" disabled />
+                  <div class="familiarity-filter-desc">
+                    {{ getFamiliarityReviewFilterDescription(filterKey) }}
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div class="familiarity-table-card">
+              <div class="section-header section-header-row">
+                <div>
+                  <h2>{{ familiarityReviewPageTitle }}</h2>
+                  <p>{{ familiarityReviewFilteredRecords.length }} words</p>
+                </div>
+                <div class="familiarity-page-hint">
+                  Click the same star again to clear the rating.
+                </div>
+              </div>
+
+              <a-table
+                :columns="familiarityReviewColumns"
+                :data-source="familiarityReviewPagedRecords"
+                :pagination="familiarityReviewPaginationConfig"
+                :scroll="{ x: 'max-content', y: 'calc(100vh - 340px)' }"
+                row-key="word"
+              >
+                <template #bodyCell="{ column, record, index }">
+                  <template v-if="column.key === 'index'">
+                    {{
+                      (familiarityReviewPagination.current - 1) *
+                        familiarityReviewPagination.pageSize +
+                      index +
+                      1
+                    }}
+                  </template>
+                  <template v-if="column.key === 'word'">
+                    <strong style="font-size: 20px; font-weight: 600;">{{ record.word }}</strong>
+                  </template>
+                  <template v-if="column.key === 'familiarity'">
+                    <div class="ted-familiarity-cell">
+                      <a-rate
+                        :value="record.familiarity"
+                        :count="5"
+                        allow-clear
+                        @change="handleWordFamiliarityChange(record.word, $event)"
+                      />
+                      <span class="ted-familiarity-text">
+                        {{ formatFamiliarityLabel(record.familiarity) }}
+                      </span>
+                    </div>
+                  </template>
+                  <template v-if="column.key === 'tags'">
+                    <a-tag
+                      v-for="tag in record.tags"
+                      :key="`${record.word}-${tag}`"
+                      :color="
+                        tag === WORD_TAG_TOP_3000
+                          ? 'green'
+                          : tag === WORD_TAG_TOP_5000
+                          ? 'blue'
+                          : tag === WORD_TAG_TOP_10000
+                          ? 'orange'
+                          : tag === WORD_TAG_10000_PLUS
+                          ? 'volcano'
+                          : 'default'
+                      "
+                    >
+                      {{ tag }}
+                    </a-tag>
+                  </template>
+                  <template v-if="column.key === 'updated_at'">
+                    {{ record.updated_at || "-" }}
+                  </template>
+                  <template v-if="column.key === 'action'">
+                    <a-button
+                      type="link"
+                      size="small"
+                      @click="clearWordFamiliarity(record.word)"
+                    >
+                      Clear
+                    </a-button>
+                  </template>
+                </template>
+              </a-table>
+            </div>
           </div>
 
           <!-- ========== 英语播放器页面 ========== -->
@@ -662,6 +724,18 @@
               @close="playerError = ''"
               style="margin-bottom: 16px"
             />
+
+            <button
+              v-if="playerShareableSourceUrl"
+              type="button"
+              class="player-source-link"
+              :title="`Click to copy ${playerSourceLinkLabel.toLowerCase()}`"
+              @click="copyPlayerSourceUrl"
+            >
+              <span class="player-source-link-label">{{ playerSourceLinkLabel }}</span>
+              <span class="player-source-link-value">{{ playerShareableSourceUrl }}</span>
+              <span class="player-source-link-hint">Click to copy</span>
+            </button>
 
             <div class="player-content">
               <div ref="playerVideoPanelRef" class="player-video-panel">
@@ -717,7 +791,7 @@
                             v-for="scale in playerSubtitleFontScaleOptions"
                             :key="String(scale)"
                           >
-                            {{ formatPlaybackRateLabel(scale) }}
+                            {{ formatSubtitleFontScaleValueLabel(scale) }}
                           </a-menu-item>
                         </a-menu>
                       </template>
@@ -941,7 +1015,7 @@
 
         <div class="setup-modal-item">
           <div class="setup-modal-item-title">
-            2. Import learning data (mastered_words.csv)
+            2. Import learning data (learning_data.csv / mastered_words.csv)
           </div>
           <input
             type="file"
@@ -971,7 +1045,7 @@
     <!-- 未学习单词弹框 -->
     <a-modal
       v-model:open="unmasteredWordsModal.visible"
-      :title="`${formatWordLevelLabel(unmasteredWordsModal.label)} - Unmastered Words`"
+      :title="`${formatWordLevelLabel(unmasteredWordsModal.label)} - Words Below 5 Stars`"
       width="900px"
       :footer="null"
       :loading="unmasteredWordsModal.loading"
@@ -980,7 +1054,7 @@
         <a-spin size="large" />
       </div>
       <div v-else-if="unmasteredWordsModal.words.length === 0" style="text-align: center; padding: 40px; color: #999">
-        No unmastered words
+        No words below 5 stars
       </div>
       <div v-else>
         <a-table
@@ -992,42 +1066,22 @@
         >
           <template #bodyCell="{ column, record }">
             <template v-if="getWordForColumn(record, column.key)">
-              <div style="display: flex; align-items: center; gap: 8px">
-                <template
-                  v-if="
-                    !unmasteredWordsModal.masteredWords.has(
-                      getWordForColumn(record, column.key)
-                    )
-                  "
-                >
-                  <a-button
-                    type="text"
-                    size="small"
-                    style="padding: 0; min-width: auto;"
-                    @click="markWordMastered(getWordForColumn(record, column.key))"
-                  >
-                    <template #icon>
-                      <CheckCircleOutlined style="color: #52c41a; font-size: 14px;" />
-                    </template>
-                  </a-button>
-                </template>
-                <CheckCircleFilled
-                  v-else
-                  style="color: #999; font-size: 14px; flex-shrink: 0;"
-                  title="Already marked as mastered"
-                />
-                <span
-                  :style="{
-                    fontSize: '18px',
-                    opacity: unmasteredWordsModal.masteredWords.has(
-                      getWordForColumn(record, column.key)
-                    )
-                      ? 0.5
-                      : 1,
-                  }"
-                >
+              <div class="unmastered-word-cell">
+                <span class="unmastered-word-text">
                   {{ getWordForColumn(record, column.key) }}
                 </span>
+                <a-rate
+                  :value="getWordFamiliarity(getWordForColumn(record, column.key))"
+                  :count="5"
+                  allow-clear
+                  @change="
+                    handleWordFamiliarityChange(
+                      getWordForColumn(record, column.key),
+                      $event,
+                      { refreshUnmasteredModal: true }
+                    )
+                  "
+                />
               </div>
             </template>
           </template>
@@ -1038,12 +1092,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, h } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import enUS from "ant-design-vue/es/locale/en_US";
 import {
-  CheckCircleOutlined,
-  CheckCircleFilled,
-  CloseOutlined,
   HomeOutlined,
   FastBackwardOutlined,
   StepBackwardOutlined,
@@ -1052,13 +1103,14 @@ import {
   CaretRightOutlined,
   PauseOutlined,
 } from "@ant-design/icons-vue";
-import { message, Modal } from "ant-design-vue";
+import { message } from "ant-design-vue";
 
 const locale = enUS;
 const APP_BUILD_TIME_ISO = __APP_BUILD_TIME__;
 
 const PLAYER_HISTORY_STORAGE_KEY = "word_power_player_history_v2";
-const MASTERED_WORDS_STORAGE_KEY = "word_power_mastered_words_v1";
+const LEARNING_RECORDS_STORAGE_KEY = "word_power_learning_records_v2";
+const LEGACY_MASTERED_WORDS_STORAGE_KEY = "word_power_mastered_words_v1";
 const WORD_LABELS_STORAGE_KEY = "word_power_word_labels_map_v1";
 const WORD_LABELS_VERSION_STORAGE_KEY = "word_power_word_labels_version_v1";
 const LEARNING_DATA_VERSION_STORAGE_KEY = "word_power_learning_data_version_v1";
@@ -1067,7 +1119,8 @@ const LOCAL_VIDEO_DB_VERSION = 1;
 const LOCAL_VIDEO_STORE_NAME = "videos";
 const LOCAL_MATERIAL_URL_PREFIX = "local-material:";
 const FIXED_WORD_LABELS_FILE_NAME = "word_labels.csv";
-const FIXED_MASTERED_WORDS_FILE_NAME = "mastered_words.csv";
+const FIXED_LEARNING_DATA_FILE_NAME = "learning_data.csv";
+const LEGACY_MASTERED_WORDS_FILE_NAME = "mastered_words.csv";
 const BASE_WORD_LABELS = ["3000", "5000", "10000"];
 const FALLBACK_WORD_LABEL = "10000+";
 const FALLBACK_WORD_TOTAL = 20000;
@@ -1081,13 +1134,26 @@ const SINGLE_LINE_STOP_BUFFER = 0.04;
 const SINGLE_LINE_EARLY_PAUSE_SEC = 0.12;
 const SINGLE_LINE_MIN_DURATION_SEC = 0.12;
 const SINGLE_LINE_NEXT_GUARD_SEC = 0.01;
-const PLAYER_SUBTITLE_FONT_SCALE_OPTIONS = [1, 1.25, 1.5, 2];
-const PLAYER_SUBTITLE_FONT_SCALE_DEFAULT = 1;
+const PLAYER_SUBTITLE_FONT_SCALE_OPTIONS = [1, 1.25, 1.5, 1.75];
+const PLAYER_SUBTITLE_FONT_SCALE_DEFAULT = 1.25;
+const PLAYER_SUBTITLE_FONT_SCALE_DISPLAY_OFFSET = 0.25;
 const PLAYER_SUBTITLE_FONT_SCALE_MIN = Math.min(...PLAYER_SUBTITLE_FONT_SCALE_OPTIONS);
 const PLAYER_SUBTITLE_FONT_SCALE_MAX = Math.max(...PLAYER_SUBTITLE_FONT_SCALE_OPTIONS);
 const DEFAULT_SUBTITLE_ACCEPT = ".srt,.vtt,.json";
 const ENABLE_YOUTUBE_OEMBED_TITLE_FETCH = false;
 const PLAYER_PLAYBACK_RATES = [0.5, 1, 1.25, 1.5, 2];
+const MAX_FAMILIARITY_LEVEL = 5;
+const REVIEW_FAMILIARITY_LEVELS = [1, 2, 3, 4];
+const REVIEW_FAMILIARITY_ALL_KEY = "all";
+const REVIEW_FAMILIARITY_FILTERS = [REVIEW_FAMILIARITY_ALL_KEY, ...REVIEW_FAMILIARITY_LEVELS];
+const FAMILIARITY_DESCRIPTIONS = {
+  0: "Not rated yet",
+  1: "Review tomorrow",
+  2: "Just starting to stick",
+  3: "Recognizable with a hint",
+  4: "Almost mastered",
+  5: "Mastered",
+};
 
 function isIOSLikeDevice() {
   if (typeof navigator === "undefined") return false;
@@ -1102,7 +1168,7 @@ function isIOSLikeDevice() {
 const homeSubtitleAccept = isIOSLikeDevice() ? "*/*" : DEFAULT_SUBTITLE_ACCEPT;
 
 // 页面导航状态
-const currentPage = ref("home"); // 'home' | 'ted' | 'player' | 'settings'
+const currentPage = ref("home"); // 'home' | 'ted' | 'familiarity' | 'player' | 'settings'
 const showStatsPage = ref(false);
 const statsGranularity = ref("day");
 
@@ -1134,6 +1200,11 @@ function goTedStatsPage() {
   showStatsPage.value = true;
 }
 
+function goFamiliarityPage() {
+  showStatsPage.value = false;
+  currentPage.value = "familiarity";
+}
+
 function goSettingsPage() {
   showStatsPage.value = false;
   currentPage.value = "settings";
@@ -1161,13 +1232,22 @@ let chartResizeHandler = null;
 
 // ===== 学习数据（本地） =====
 const learningProgress = ref(null);
-const masteredWords = ref({}); // {word: date}
+const learningRecords = ref({}); // {word: { familiarity, updated_at }}
 const wordLabelsMap = ref(new Map()); // Map<word, label>
 const wordLabelsVersion = ref("");
 const learningDataVersion = ref("");
 const setupWordLabelsFileName = ref("");
 const setupLearningDataFileName = ref("");
 const setupDataModalOpen = ref(false);
+const masteredWords = computed(() => {
+  const result = {};
+  Object.entries(learningRecords.value).forEach(([word, record]) => {
+    if (Number(record?.familiarity || 0) === MAX_FAMILIARITY_LEVEL) {
+      result[word] = String(record?.updated_at || "").slice(0, 10) || formatLearningDate();
+    }
+  });
+  return result;
+});
 
 const wordLabelsCount = computed(() => wordLabelsMap.value.size);
 const isDataSetupReady = computed(() => {
@@ -1256,6 +1336,12 @@ const tedColumns = [
     align: "left",
   },
   {
+    title: "Familiarity",
+    key: "familiarity",
+    width: 240,
+    align: "left",
+  },
+  {
     title: "Tag",
     key: "tags",
     width: 150,
@@ -1284,6 +1370,7 @@ const lastTedAnalysisMeta = ref({
 });
 
 const tedSelectedTagFilter = ref(null);
+const tedShowFiveStarWords = ref(false);
 const tedPagination = ref({
   current: 1,
   pageSize: 20,
@@ -1310,14 +1397,16 @@ watch(youtubeUrl, (newUrl) => {
 });
 
 const tedFilteredResults = computed(() => {
-  const unmasteredResults = tedResults.value.filter((item) => !item.mastered);
+  const visibleResults = tedShowFiveStarWords.value
+    ? tedResults.value.slice()
+    : tedResults.value.filter((item) => !item.mastered);
 
   if (!tedSelectedTagFilter.value) {
-    return unmasteredResults;
+    return visibleResults;
   }
 
   if (tedSelectedTagFilter.value === WORD_TAG_OFF_LIST) {
-    return unmasteredResults.filter((item) => {
+    return visibleResults.filter((item) => {
       return (
         !item.tags.includes(WORD_TAG_TOP_3000) &&
         !item.tags.includes(WORD_TAG_TOP_5000) &&
@@ -1327,7 +1416,7 @@ const tedFilteredResults = computed(() => {
     });
   }
 
-  return unmasteredResults.filter((item) =>
+  return visibleResults.filter((item) =>
     item.tags.includes(tedSelectedTagFilter.value)
   );
 });
@@ -1396,13 +1485,132 @@ const tedDifficultyAssessment = computed(() => {
   return buildTranscriptDifficultyAssessment(tedSubtitleLines.value);
 });
 
+const familiarityReviewSelectedStar = ref(REVIEW_FAMILIARITY_ALL_KEY);
+const familiarityReviewPagination = ref({
+  current: 1,
+  pageSize: 20,
+});
+const familiarityReviewColumns = [
+  {
+    title: "#",
+    key: "index",
+    width: 80,
+    align: "left",
+  },
+  {
+    title: "Word",
+    dataIndex: "word",
+    key: "word",
+    width: 220,
+    fixed: "left",
+    align: "left",
+  },
+  {
+    title: "Familiarity",
+    key: "familiarity",
+    width: 240,
+    align: "left",
+  },
+  {
+    title: "Tag",
+    key: "tags",
+    width: 180,
+    align: "left",
+  },
+  {
+    title: "Updated",
+    key: "updated_at",
+    width: 140,
+    align: "left",
+  },
+  {
+    title: "",
+    key: "action",
+    width: 100,
+    align: "right",
+  },
+];
+
+const familiarityReviewCounts = computed(() => {
+  const counts = {
+    [REVIEW_FAMILIARITY_ALL_KEY]: 0,
+  };
+  REVIEW_FAMILIARITY_LEVELS.forEach((star) => {
+    counts[star] = 0;
+  });
+
+  Object.values(learningRecords.value).forEach((record) => {
+    const familiarity = Number(record?.familiarity || 0);
+    if (REVIEW_FAMILIARITY_LEVELS.includes(familiarity)) {
+      counts[familiarity] += 1;
+      counts[REVIEW_FAMILIARITY_ALL_KEY] += 1;
+    }
+  });
+
+  return counts;
+});
+
+const familiarityReviewRecords = computed(() => {
+  return Object.entries(learningRecords.value)
+    .map(([word, record]) => ({
+      word,
+      familiarity: Number(record?.familiarity || 0),
+      updated_at: String(record?.updated_at || "").slice(0, 10),
+      tags: getWordTags(word),
+    }))
+    .filter((record) => REVIEW_FAMILIARITY_LEVELS.includes(record.familiarity))
+    .sort((a, b) => {
+      if (a.updated_at !== b.updated_at) {
+        return b.updated_at.localeCompare(a.updated_at);
+      }
+      return a.word.localeCompare(b.word);
+    });
+});
+
+const familiarityReviewFilteredRecords = computed(() => {
+  if (familiarityReviewSelectedStar.value === REVIEW_FAMILIARITY_ALL_KEY) {
+    return familiarityReviewRecords.value;
+  }
+
+  return familiarityReviewRecords.value.filter(
+    (record) => record.familiarity === familiarityReviewSelectedStar.value
+  );
+});
+
+const familiarityReviewPagedRecords = computed(() => {
+  const current = familiarityReviewPagination.value.current;
+  const pageSize = familiarityReviewPagination.value.pageSize;
+  const startIndex = (current - 1) * pageSize;
+  return familiarityReviewFilteredRecords.value.slice(startIndex, startIndex + pageSize);
+});
+
+const familiarityReviewPaginationConfig = computed(() => {
+  return {
+    current: familiarityReviewPagination.value.current,
+    pageSize: familiarityReviewPagination.value.pageSize,
+    total: familiarityReviewFilteredRecords.value.length,
+    showSizeChanger: false,
+    showTotal: (value) => `${value} words`,
+    onChange: (page) => {
+      familiarityReviewPagination.value.current = page;
+    },
+  };
+});
+
+const familiarityReviewPageTitle = computed(() => {
+  if (familiarityReviewSelectedStar.value === REVIEW_FAMILIARITY_ALL_KEY) {
+    return "All 1-4 Star Words";
+  }
+
+  return `${familiarityReviewSelectedStar.value}-Star Words`;
+});
+
 // ===== 未学习单词弹框 =====
 const unmasteredWordsModal = ref({
   visible: false,
   label: "",
   words: [],
   loading: false,
-  masteredWords: new Set(),
 });
 const unmasteredWordsPagination = ref({
   current: 1,
@@ -1446,7 +1654,7 @@ const unmasteredWordsPaginationConfig = computed(() => {
     pageSize,
     total,
     showSizeChanger: false,
-    showTotal: (value) => `${value} unmastered words`,
+    showTotal: (value) => `${value} words below 5 stars`,
     onChange: (page) => {
       unmasteredWordsPagination.value.current = page;
     },
@@ -1568,6 +1776,23 @@ const playerSubtitleStyleVars = computed(() => {
   };
 });
 
+const playerShareableSourceUrl = computed(() => {
+  const url = normalizeYoutubeUrl(playerParsedYoutubeUrl.value || playerYoutubeUrl.value);
+  if (!url || url.startsWith(LOCAL_MATERIAL_URL_PREFIX)) {
+    return "";
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    return "";
+  }
+  return url;
+});
+
+const playerSourceLinkLabel = computed(() => {
+  return extractYoutubeVideoIdSafe(playerShareableSourceUrl.value)
+    ? "YouTube Link"
+    : "Source Link";
+});
+
 const playerPlaybackRateOptions = computed(() => {
   return Array.from(
     new Set([
@@ -1585,22 +1810,6 @@ const PLAYER_SUBTITLE_SCROLL_MAX_RATIO = 0.62;
 
 const playerTranscriptHash = computed(() => {
   return computeTranscriptHash(playerTranscriptLines.value);
-});
-
-const playerUnknownWordsFromTedAnalysis = computed(() => {
-  if (
-    lastTedAnalysisMeta.value.source !== "local" ||
-    lastTedAnalysisMeta.value.subtitle_hash !== playerTranscriptHash.value
-  ) {
-    return new Set();
-  }
-
-  return new Set(
-    tedResults.value
-      .filter((item) => !item.mastered)
-      .map((item) => (item.word || "").toLowerCase())
-      .filter((word) => !!word)
-  );
 });
 
 const playerTranscriptWordSet = computed(() => {
@@ -1770,6 +1979,21 @@ watch(
   [() => tedFilteredResults.value.length, () => tedPagination.value.pageSize],
   () => {
     clampTedPaginationPage();
+  }
+);
+
+watch(
+  [() => familiarityReviewFilteredRecords.value.length, () => familiarityReviewPagination.value.pageSize],
+  () => {
+    const pageSize = Math.max(1, Number(familiarityReviewPagination.value.pageSize) || 20);
+    const maxPage = Math.max(
+      1,
+      Math.ceil(familiarityReviewFilteredRecords.value.length / pageSize)
+    );
+    const currentPage = Math.max(1, Number(familiarityReviewPagination.value.current) || 1);
+    if (currentPage > maxPage) {
+      familiarityReviewPagination.value.current = maxPage;
+    }
   }
 );
 
@@ -2500,6 +2724,109 @@ function parseWordLabelsCsv(csvText) {
   return map;
 }
 
+function formatLearningDate(dateValue = new Date()) {
+  if (dateValue instanceof Date) {
+    return dateValue.toISOString().slice(0, 10);
+  }
+
+  const normalized = String(dateValue || "").trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized)
+    ? normalized
+    : new Date().toISOString().slice(0, 10);
+}
+
+function normalizeFamiliarityLevel(value) {
+  const normalized = Number(value || 0);
+  if (!Number.isFinite(normalized)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(MAX_FAMILIARITY_LEVEL, Math.round(normalized)));
+}
+
+function getFamiliarityDescription(level) {
+  return FAMILIARITY_DESCRIPTIONS[normalizeFamiliarityLevel(level)] || FAMILIARITY_DESCRIPTIONS[0];
+}
+
+function formatFamiliarityLabel(level) {
+  const familiarity = normalizeFamiliarityLevel(level);
+  if (familiarity === 0) {
+    return "Unrated";
+  }
+  if (familiarity === MAX_FAMILIARITY_LEVEL) {
+    return "5 Stars · Mastered";
+  }
+  return `${familiarity} Star${familiarity > 1 ? "s" : ""}`;
+}
+
+function normalizeLearningRecord(rawRecord, fallbackDate = formatLearningDate()) {
+  if (rawRecord == null) {
+    return null;
+  }
+
+  if (typeof rawRecord === "string") {
+    return {
+      familiarity: MAX_FAMILIARITY_LEVEL,
+      updated_at: formatLearningDate(rawRecord || fallbackDate),
+    };
+  }
+
+  if (typeof rawRecord !== "object" || Array.isArray(rawRecord)) {
+    return null;
+  }
+
+  const familiarity = normalizeFamiliarityLevel(
+    rawRecord.familiarity ?? rawRecord.stars ?? rawRecord.level
+  );
+  if (familiarity <= 0) {
+    return null;
+  }
+
+  return {
+    familiarity,
+    updated_at: formatLearningDate(
+      rawRecord.updated_at ?? rawRecord.updatedAt ?? rawRecord.date ?? fallbackDate
+    ),
+  };
+}
+
+function normalizeLearningRecordsMap(rawRecords) {
+  const normalized = {};
+  if (!rawRecords || typeof rawRecords !== "object" || Array.isArray(rawRecords)) {
+    return normalized;
+  }
+
+  Object.entries(rawRecords).forEach(([word, rawRecord]) => {
+    const normalizedWord = String(word || "").trim().toLowerCase();
+    if (!normalizedWord) return;
+
+    const record = normalizeLearningRecord(rawRecord);
+    if (record) {
+      normalized[normalizedWord] = record;
+    }
+  });
+
+  return normalized;
+}
+
+function convertLegacyMasteredMapToLearningRecords(rawRecords) {
+  const records = {};
+  if (!rawRecords || typeof rawRecords !== "object" || Array.isArray(rawRecords)) {
+    return records;
+  }
+
+  Object.entries(rawRecords).forEach(([word, date]) => {
+    const normalizedWord = String(word || "").trim().toLowerCase();
+    if (!normalizedWord) return;
+
+    records[normalizedWord] = {
+      familiarity: MAX_FAMILIARITY_LEVEL,
+      updated_at: formatLearningDate(date),
+    };
+  });
+
+  return records;
+}
+
 function parseMasteredWordsCsv(csvText) {
   const result = {};
   const lines = csvText.replace(/\r/g, "").split("\n").filter(Boolean);
@@ -2516,12 +2843,42 @@ function parseMasteredWordsCsv(csvText) {
     if (commaIndex < 0) continue;
 
     const word = raw.slice(0, commaIndex).trim().toLowerCase();
-    const date = raw.slice(commaIndex + 1).trim().slice(0, 10);
+    const date = raw.slice(commaIndex + 1).trim();
     if (!word) continue;
-    result[word] = date || new Date().toISOString().slice(0, 10);
+    result[word] = formatLearningDate(date);
   }
 
   return result;
+}
+
+function parseLearningRecordsCsv(csvText) {
+  const lines = csvText.replace(/\r/g, "").split("\n").filter(Boolean);
+  if (!lines.length) {
+    return {};
+  }
+
+  const header = lines[0].trim().toLowerCase();
+  const hasFamiliarityHeader =
+    header === "word,familiarity,updated_at" || header === "word,stars,updated_at";
+  if (hasFamiliarityHeader) {
+    const records = {};
+    for (let i = 1; i < lines.length; i++) {
+      const [wordRaw = "", familiarityRaw = "", updatedAtRaw = ""] = lines[i].split(",");
+      const word = wordRaw.trim().toLowerCase();
+      if (!word) continue;
+
+      const familiarity = normalizeFamiliarityLevel(familiarityRaw);
+      if (familiarity <= 0) continue;
+
+      records[word] = {
+        familiarity,
+        updated_at: formatLearningDate(updatedAtRaw),
+      };
+    }
+    return records;
+  }
+
+  return convertLegacyMasteredMapToLearningRecords(parseMasteredWordsCsv(csvText));
 }
 
 function formatFileTimestamp(date = new Date()) {
@@ -2540,13 +2897,15 @@ function decodeBase64Utf8(base64Value) {
   return new TextDecoder().decode(bytes);
 }
 
-function buildMasteredWordsCsv() {
-  const rows = ["word,date"];
-  const entries = Object.entries(masteredWords.value).sort((a, b) =>
+function buildLearningRecordsCsv() {
+  const rows = ["word,familiarity,updated_at"];
+  const entries = Object.entries(learningRecords.value).sort((a, b) =>
     a[0].localeCompare(b[0])
   );
-  entries.forEach(([word, date]) => {
-    rows.push(`${word},${String(date || "").slice(0, 10)}`);
+  entries.forEach(([word, record]) => {
+    rows.push(
+      `${word},${normalizeFamiliarityLevel(record?.familiarity)},${formatLearningDate(record?.updated_at)}`
+    );
   });
   return `${rows.join("\n")}\n`;
 }
@@ -2561,7 +2920,7 @@ function parseLearningDataCsv(csvText) {
     return null;
   }
 
-  const mastered = {};
+  const learningRecordsPayload = {};
   const history = [];
   const meta = {};
 
@@ -2574,9 +2933,24 @@ function parseLearningDataCsv(csvText) {
 
     if (section === "mastered") {
       const word = field1.trim().toLowerCase();
-      const date = field2.trim().slice(0, 10);
+      const date = field2.trim();
       if (word) {
-        mastered[word] = date || new Date().toISOString().slice(0, 10);
+        learningRecordsPayload[word] = {
+          familiarity: MAX_FAMILIARITY_LEVEL,
+          updated_at: formatLearningDate(date),
+        };
+      }
+      continue;
+    }
+
+    if (section === "familiarity") {
+      const word = field1.trim().toLowerCase();
+      const familiarity = normalizeFamiliarityLevel(field2.trim());
+      if (word && familiarity > 0) {
+        learningRecordsPayload[word] = {
+          familiarity,
+          updated_at: formatLearningDate(field3.trim()),
+        };
       }
       continue;
     }
@@ -2597,7 +2971,7 @@ function parseLearningDataCsv(csvText) {
   }
 
   return {
-    mastered_words: mastered,
+    learning_records: learningRecordsPayload,
     player_history: history,
     meta,
   };
@@ -2699,48 +3073,57 @@ function ensureSetupModalState() {
 
 function loadMasteredWordsFromStorage() {
   try {
-    const raw = localStorage.getItem(MASTERED_WORDS_STORAGE_KEY);
-    if (!raw) {
-      masteredWords.value = {};
+    const rawRecords = localStorage.getItem(LEARNING_RECORDS_STORAGE_KEY);
+    if (rawRecords) {
+      learningRecords.value = normalizeLearningRecordsMap(JSON.parse(rawRecords));
       return;
     }
 
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      masteredWords.value = {};
+    const legacyRaw = localStorage.getItem(LEGACY_MASTERED_WORDS_STORAGE_KEY);
+    if (!legacyRaw) {
+      learningRecords.value = {};
       return;
     }
 
-    const normalized = {};
-    Object.entries(parsed).forEach(([word, date]) => {
-      const normalizedWord = String(word || "").trim().toLowerCase();
-      if (!normalizedWord) return;
-      normalized[normalizedWord] = String(date || "").slice(0, 10) || "";
-    });
-
-    masteredWords.value = normalized;
+    learningRecords.value = convertLegacyMasteredMapToLearningRecords(JSON.parse(legacyRaw));
+    saveMasteredWordsToStorage();
   } catch (err) {
     console.warn("Failed to load mastered words:", err);
-    masteredWords.value = {};
+    learningRecords.value = {};
   }
 }
 
 function saveMasteredWordsToStorage() {
   localStorage.setItem(
-    MASTERED_WORDS_STORAGE_KEY,
-    JSON.stringify(masteredWords.value)
+    LEARNING_RECORDS_STORAGE_KEY,
+    JSON.stringify(learningRecords.value)
   );
+}
+
+function getWordFamiliarity(word) {
+  const normalizedWord = String(word || "").trim().toLowerCase();
+  if (!normalizedWord) return 0;
+  return normalizeFamiliarityLevel(learningRecords.value[normalizedWord]?.familiarity);
+}
+
+function getWordLearningUpdatedAt(word) {
+  const normalizedWord = String(word || "").trim().toLowerCase();
+  if (!normalizedWord) return "";
+  return String(learningRecords.value[normalizedWord]?.updated_at || "").slice(0, 10);
 }
 
 function refreshTedMasteredFlags() {
   if (!tedResults.value.length) return;
 
   tedResults.value = tedResults.value.map((item) => {
+    const familiarity = getWordFamiliarity(item.word);
     const masteredDate = masteredWords.value[item.word] || "";
     return {
       ...item,
+      familiarity,
       mastered: !!masteredDate,
       mastered_date: masteredDate,
+      updated_at: getWordLearningUpdatedAt(item.word),
     };
   });
 
@@ -2872,93 +3255,7 @@ function buildPersonalDifficultyDescription({
   return "The line-by-line pressure is high for chunk accumulation, so previewing or pre-learning words will help.";
 }
 
-function buildIPlusOneAssessment({
-  unknownWordsPerMinute,
-  cleanLineRatioPct,
-  linesWithUnknownRatioPct,
-  longLinesWithUnknownRatioPct,
-}) {
-  const idealUnknownWordsPerMinute = 4;
-  const fitPosition = clampNumber(
-    50 +
-      (unknownWordsPerMinute - idealUnknownWordsPerMinute) * 10 +
-      (linesWithUnknownRatioPct - 35) * 0.55 +
-      (longLinesWithUnknownRatioPct - 12) * 0.45 -
-      Math.max(0, cleanLineRatioPct - 55) * 0.35,
-    0,
-    100
-  );
-
-  const levelOffset = roundMetric((fitPosition - 50) / 25, 1);
-  const estimatedLevel = roundMetric(1 + levelOffset, 1);
-  const levelText =
-    estimatedLevel <= -0.5
-      ? "i-1"
-      : estimatedLevel <= 0.4
-      ? "i"
-      : estimatedLevel < 1.6
-      ? "i+1"
-      : estimatedLevel < 2.6
-      ? "i+2"
-      : "i+3+";
-
-  if (
-    unknownWordsPerMinute < 2 &&
-    cleanLineRatioPct >= 70 &&
-    longLinesWithUnknownRatioPct <= 10
-  ) {
-    return {
-      key: "easy",
-      label: "Too Easy",
-      position: fitPosition,
-      levelText,
-      description: "There are too few new words per minute, and too many clean lines for this to act as strong growth input.",
-      recommendation: "Use it for smooth shadowing or switch to slightly less familiar material.",
-    };
-  }
-
-  if (
-    unknownWordsPerMinute >= 3 &&
-    unknownWordsPerMinute <= 5 &&
-    linesWithUnknownRatioPct <= 40 &&
-    longLinesWithUnknownRatioPct <= 18
-  ) {
-    return {
-      key: "ideal",
-      label: "Near i+1",
-      position: fitPosition,
-      levelText,
-      description: "This sits close to your preferred shadowing zone: a few new words per minute without overwhelming most lines.",
-      recommendation: "Good for semantic chunking, shadowing, and repeated exposure.",
-    };
-  }
-
-  if (
-    unknownWordsPerMinute <= 7 &&
-    linesWithUnknownRatioPct <= 60 &&
-    longLinesWithUnknownRatioPct <= 30
-  ) {
-    return {
-      key: "stretch",
-      label: "Stretch",
-      position: fitPosition,
-      levelText,
-      description: "It is still workable, but enough lines contain unknown words that shadowing flow will break often.",
-      recommendation: "Use shorter chunks or pre-learn the key unknown words first.",
-    };
-  }
-
-  return {
-    key: "very-hard",
-    label: "Too Hard",
-    position: fitPosition,
-    levelText,
-    description: "Too many lines are contaminated by unknown words, so it is inefficient for chunk-based shadowing right now.",
-    recommendation: "Preview the unknown vocabulary first, or switch to cleaner material.",
-  };
-}
-
-function buildDifficultyNarrative({ objective, personal, fit }) {
+function buildDifficultyNarrative({ objective, personal }) {
   const objectiveHard = objective.score >= 60;
   const objectiveEasy = objective.score <= 35;
   const personalHard = personal.score >= 60;
@@ -2976,7 +3273,13 @@ function buildDifficultyNarrative({ objective, personal, fit }) {
   if (objectiveEasy && personalEasy) {
     return "This is easy both objectively and personally, so it is better for review, extensive listening, or fluency work.";
   }
-  return fit.description;
+  if (personal.score > objective.score + 12) {
+    return "The material itself is manageable, but it still feels harder for you than its objective profile suggests.";
+  }
+  if (objective.score > personal.score + 12) {
+    return "The material is objectively dense, but your current coverage keeps it more manageable than average.";
+  }
+  return "Objective difficulty and your personal difficulty are fairly aligned for this material.";
 }
 
 function buildTranscriptDifficultyAssessment(lines) {
@@ -2991,7 +3294,6 @@ function buildTranscriptDifficultyAssessment(lines) {
 
   const uniqueWords = new Set();
   let totalTokens = 0;
-  let knownTokens = 0;
   let unknownTokens = 0;
   let sentenceCount = 0;
   let linesWithUnknown = 0;
@@ -3016,9 +3318,7 @@ function buildTranscriptDifficultyAssessment(lines) {
       uniqueWords.add(word);
       labelUniqueSets[getWordLabel(word)].add(word);
 
-      if (masteredSet.has(word)) {
-        knownTokens++;
-      } else {
+      if (!masteredSet.has(word)) {
         unknownTokens++;
         lineUnknownCount++;
       }
@@ -3043,8 +3343,6 @@ function buildTranscriptDifficultyAssessment(lines) {
   const uniquePerThousand = (uniqueCount / totalTokens) * 1000;
   const avgLineLength = totalTokens / sentenceCount;
   const offListUniqueRatio = labelUniqueSets["10000+"].size / uniqueCount;
-  const knownCoverage = knownTokens / totalTokens;
-  const unknownTokenRatio = unknownTokens / totalTokens;
   const unknownUniqueRatio = unknownUniqueCount / uniqueCount;
   const linesWithUnknownRatio = linesWithUnknown / sentenceCount;
   const cleanLineRatio = cleanLines / sentenceCount;
@@ -3084,8 +3382,6 @@ function buildTranscriptDifficultyAssessment(lines) {
   const objectiveLevel = describeDifficultyLevel(objectiveScore);
   const personalLevel = describeDifficultyLevel(personalScore);
 
-  const knownCoveragePct = roundMetric(knownCoverage * 100, 1);
-  const unknownTokenRatioPct = roundMetric(unknownTokenRatio * 100, 1);
   const unknownUniqueRatioPct = roundMetric(unknownUniqueRatio * 100, 1);
   const linesWithUnknownRatioPct = roundMetric(linesWithUnknownRatio * 100, 1);
   const cleanLineRatioPct = roundMetric(cleanLineRatio * 100, 1);
@@ -3121,16 +3417,9 @@ function buildTranscriptDifficultyAssessment(lines) {
     metrics: [],
   };
 
-  const fit = buildIPlusOneAssessment({
-    unknownWordsPerMinute: unknownWordsPerMinuteRounded,
-    cleanLineRatioPct,
-    linesWithUnknownRatioPct,
-    longLinesWithUnknownRatioPct,
-  });
-
   return {
     sampleLabel: `${sentenceCount} lines · ${totalTokens} tokens · ${durationMinutesRounded} min`,
-    summary: buildDifficultyNarrative({ objective, personal, fit }),
+    summary: buildDifficultyNarrative({ objective, personal }),
     objective,
     personal,
     metrics: [
@@ -3151,11 +3440,6 @@ function buildTranscriptDifficultyAssessment(lines) {
         hint: "Among non-repeated vocabulary types, this is the percentage that you have not mastered yet.",
       },
     ],
-    fit: {
-      ...fit,
-      supportingValue: `${unknownWordsPerMinuteRounded} unknown/min`,
-      secondaryValue: `${formatMetricPercent(cleanLineRatioPct)} clean lines`,
-    },
   };
 }
 
@@ -3170,13 +3454,16 @@ function analyzeSubtitleLines(lines) {
   }
 
   const results = Array.from(wordCounter.entries()).map(([word, count]) => {
+    const familiarity = getWordFamiliarity(word);
     const masteredDate = masteredWords.value[word] || "";
     return {
       word,
       count,
       tags: getWordTags(word),
+      familiarity,
       mastered: !!masteredDate,
       mastered_date: masteredDate,
+      updated_at: getWordLearningUpdatedAt(word),
     };
   });
 
@@ -3421,7 +3708,7 @@ function triggerWordLabelsUpload() {
 
 function exportLearningData() {
   const ts = formatFileTimestamp();
-  const csv = buildMasteredWordsCsv();
+  const csv = buildLearningRecordsCsv();
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -3440,7 +3727,9 @@ async function importLearningDataFromFile(file) {
 
   const parsedLearningData = parseLearningDataCsv(text);
   if (parsedLearningData) {
-    masteredWords.value = parsedLearningData.mastered_words || {};
+    learningRecords.value = normalizeLearningRecordsMap(
+      parsedLearningData.learning_records || {}
+    );
     saveMasteredWordsToStorage();
 
     if (Array.isArray(parsedLearningData.player_history)) {
@@ -3457,16 +3746,21 @@ async function importLearningDataFromFile(file) {
       savePlayerHistory();
     }
 
-    saveLearningDataVersion(FIXED_MASTERED_WORDS_FILE_NAME);
+    saveLearningDataVersion(file.name || FIXED_LEARNING_DATA_FILE_NAME);
     refreshTedMasteredFlags();
     await loadLearningProgress();
     ensureSetupModalState();
     return "Learning data CSV imported successfully.";
   }
 
-  masteredWords.value = parseMasteredWordsCsv(text);
+  const parsedLearningRecords = parseLearningRecordsCsv(text);
+  if (!Object.keys(parsedLearningRecords).length && text.trim()) {
+    throw new Error("The learning data file is empty or malformed.");
+  }
+
+  learningRecords.value = parsedLearningRecords;
   saveMasteredWordsToStorage();
-  saveLearningDataVersion(FIXED_MASTERED_WORDS_FILE_NAME);
+  saveLearningDataVersion(file.name || LEGACY_MASTERED_WORDS_FILE_NAME);
   refreshTedMasteredFlags();
   await loadLearningProgress();
   ensureSetupModalState();
@@ -3567,6 +3861,24 @@ function getWordsByLabel(label) {
   return Array.from(labelWordSets.value[label] || []);
 }
 
+function refreshUnmasteredWordsModalWords() {
+  if (!unmasteredWordsModal.value.label) {
+    unmasteredWordsModal.value.words = [];
+    return;
+  }
+
+  const masteredSet = new Set(Object.keys(masteredWords.value));
+  unmasteredWordsModal.value.words = getWordsByLabel(unmasteredWordsModal.value.label)
+    .filter((word) => !masteredSet.has(word))
+    .sort();
+
+  const pageSize = Math.max(1, Number(unmasteredWordsPagination.value.pageSize) || 50);
+  const maxPage = Math.max(1, Math.ceil(unmasteredWordsModal.value.words.length / pageSize));
+  if (unmasteredWordsPagination.value.current > maxPage) {
+    unmasteredWordsPagination.value.current = maxPage;
+  }
+}
+
 async function showUnmasteredWords(label, progress) {
   if (label === FALLBACK_WORD_LABEL) {
     message.info("10000+ is a fallback label, so a full unmastered-word list is not available for it yet.");
@@ -3574,61 +3886,92 @@ async function showUnmasteredWords(label, progress) {
   }
 
   if (progress.mastered >= progress.total) {
-    message.info("All words are already mastered.");
+    message.info("All words are already 5 stars.");
     return;
   }
 
   unmasteredWordsModal.value.label = label;
   unmasteredWordsModal.value.visible = true;
   unmasteredWordsModal.value.loading = true;
-  unmasteredWordsModal.value.masteredWords = new Set();
   unmasteredWordsPagination.value.current = 1;
 
   try {
-    const masteredSet = new Set(Object.keys(masteredWords.value));
-    unmasteredWordsModal.value.words = getWordsByLabel(label)
-      .filter((word) => !masteredSet.has(word))
-      .sort();
+    refreshUnmasteredWordsModalWords();
   } finally {
     unmasteredWordsModal.value.loading = false;
   }
 }
 
-function applyWordMasteredStatus(word, mastered) {
+function applyWordFamiliarity(word, familiarity) {
   const normalizedWord = String(word || "").trim().toLowerCase();
   if (!normalizedWord) return;
+  const nextFamiliarity = normalizeFamiliarityLevel(familiarity);
+  const next = { ...learningRecords.value };
 
-  if (mastered) {
-    masteredWords.value = {
-      ...masteredWords.value,
-      [normalizedWord]: new Date().toISOString().slice(0, 10),
+  if (nextFamiliarity > 0) {
+    next[normalizedWord] = {
+      familiarity: nextFamiliarity,
+      updated_at: formatLearningDate(),
     };
   } else {
-    const next = { ...masteredWords.value };
     delete next[normalizedWord];
-    masteredWords.value = next;
   }
 
+  learningRecords.value = next;
   saveMasteredWordsToStorage();
 }
 
-async function markWordMastered(word) {
-  applyWordMasteredStatus(word, true);
-  refreshTedMasteredFlags();
+async function handleWordFamiliarityChange(word, familiarity, options = {}) {
+  const normalizedWord = String(word || "").trim().toLowerCase();
+  if (!normalizedWord) return;
 
-  if (unmasteredWordsModal.value.visible) {
-    unmasteredWordsModal.value.masteredWords.add(word);
+  const nextFamiliarity = normalizeFamiliarityLevel(familiarity);
+  const prevFamiliarity = getWordFamiliarity(normalizedWord);
+  if (prevFamiliarity === nextFamiliarity) {
+    return;
   }
 
+  applyWordFamiliarity(normalizedWord, nextFamiliarity);
+  refreshTedMasteredFlags();
+  if (options.refreshUnmasteredModal && unmasteredWordsModal.value.visible) {
+    refreshUnmasteredWordsModalWords();
+  }
   await loadLearningProgress();
-  message.success("Marked as mastered.");
+  if (nextFamiliarity === 0) {
+    message.success(`Cleared familiarity for "${normalizedWord}".`);
+    return;
+  }
+
+  message.success(`Set "${normalizedWord}" to ${formatFamiliarityLabel(nextFamiliarity)}.`);
 }
 
-async function unmarkWordMastered(word) {
-  applyWordMasteredStatus(word, false);
-  refreshTedMasteredFlags();
-  await loadLearningProgress();
-  message.success("Mastered mark removed.");
+async function clearWordFamiliarity(word) {
+  await handleWordFamiliarityChange(word, 0, {
+    refreshUnmasteredModal: true,
+  });
+}
+
+function getFamiliarityReviewFilterTitle(filterKey) {
+  if (filterKey === REVIEW_FAMILIARITY_ALL_KEY) {
+    return "All";
+  }
+
+  return `${filterKey} Star`;
+}
+
+function getFamiliarityReviewFilterDescription(filterKey) {
+  if (filterKey === REVIEW_FAMILIARITY_ALL_KEY) {
+    return "Show every word below 5 stars.";
+  }
+
+  return getFamiliarityDescription(filterKey);
+}
+
+function selectFamiliarityReviewStar(filterKey) {
+  familiarityReviewSelectedStar.value = filterKey === REVIEW_FAMILIARITY_ALL_KEY
+    ? REVIEW_FAMILIARITY_ALL_KEY
+    : normalizeFamiliarityLevel(filterKey) || REVIEW_FAMILIARITY_ALL_KEY;
+  familiarityReviewPagination.value.current = 1;
 }
 
 function handleTedTableChange(pag) {
@@ -3643,125 +3986,6 @@ function filterTedByTag(tag) {
     tedSelectedTagFilter.value = tag;
   }
   tedPagination.value.current = 1;
-}
-
-function markTedCurrentPageMastered() {
-  if (!tedResults.value.length) return;
-
-  const currentPageNo = tedPagination.value.current || 1;
-  const pageSize = tedPagination.value.pageSize || 20;
-  const startIndex = (currentPageNo - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-
-  const currentPageData = tedFilteredResults.value.slice(startIndex, endIndex);
-  const initialWords = currentPageData.filter((item) => !item.mastered);
-
-  if (initialWords.length === 0) {
-    message.info("There are no unmarked words on this page.");
-    return;
-  }
-
-  const wordsToMark = ref([...initialWords]);
-  let modalInstance = null;
-
-  const createContent = () => {
-    return h("div", [
-      h("p", { style: "margin-bottom: 12px" }, [
-        "You are about to mark ",
-        h("strong", { style: "color: #1890ff" }, wordsToMark.value.length),
-        " words:",
-      ]),
-      h(
-        "div",
-        {
-          style:
-            "max-height: 300px; overflow-y: auto; border: 1px solid #d9d9d9; border-radius: 4px; padding: 12px; background: #fafafa",
-        },
-        [
-          wordsToMark.value.length === 0
-            ? h(
-                "p",
-                { style: "color: #999; text-align: center; padding: 20px" },
-                "All words removed"
-              )
-            : h(
-                "div",
-                {
-                  style: "display: flex; flex-wrap: wrap; gap: 8px; line-height: 1.8",
-                },
-                wordsToMark.value.map((item) =>
-                  h(
-                    "span",
-                    {
-                      key: item.word,
-                      style:
-                        "display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #fff; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px",
-                    },
-                    [
-                      item.word,
-                      h(
-                        "span",
-                        {
-                          style:
-                            "cursor: pointer; color: #999; display: inline-flex; align-items: center; padding: 2px; transition: color 0.2s",
-                          onMouseenter: (e) => {
-                            e.target.style.color = "#ff4d4f";
-                          },
-                          onMouseleave: (e) => {
-                            e.target.style.color = "#999";
-                          },
-                          onClick: () => {
-                            const idx = wordsToMark.value.findIndex((w) => w.word === item.word);
-                            if (idx > -1) {
-                              wordsToMark.value.splice(idx, 1);
-                              if (modalInstance) {
-                                Modal.destroyAll();
-                                modalInstance = Modal.confirm({
-                                  title: "Confirm Mark as Mastered",
-                                  width: 500,
-                                  content: createContent(),
-                                  okText: "Confirm",
-                                  cancelText: "Cancel",
-                                  onOk: handleOk,
-                                });
-                              }
-                            }
-                          },
-                        },
-                        [h(CloseOutlined, { style: "font-size: 12px" })]
-                      ),
-                    ]
-                  )
-                )
-              ),
-        ]
-      ),
-    ]);
-  };
-
-  const handleOk = async () => {
-    if (wordsToMark.value.length === 0) {
-      message.info("There are no words to mark.");
-      return;
-    }
-
-    wordsToMark.value.forEach((item) => {
-      applyWordMasteredStatus(item.word, true);
-    });
-
-    refreshTedMasteredFlags();
-    await loadLearningProgress();
-    message.success(`Marked ${wordsToMark.value.length} words as mastered.`);
-  };
-
-  modalInstance = Modal.confirm({
-    title: "Confirm Mark as Mastered",
-    width: 500,
-    content: createContent(),
-    okText: "Confirm",
-    cancelText: "Cancel",
-    onOk: handleOk,
-  });
 }
 
 function handleHomeVideoFileChange(event) {
@@ -4699,6 +4923,22 @@ async function copyAbSubtitleRange() {
   }
 }
 
+async function copyPlayerSourceUrl() {
+  if (!playerShareableSourceUrl.value) {
+    return;
+  }
+
+  try {
+    const copied = await writeClipboardText(playerShareableSourceUrl.value);
+    if (!copied) {
+      throw new Error("copy_failed");
+    }
+    message.success(`${playerSourceLinkLabel.value} copied.`);
+  } catch {
+    message.error("Copy failed. Check browser clipboard permissions.");
+  }
+}
+
 function isAbCandidate(index) {
   return playerAbSelectionMode.value && playerAbSelectionCandidates.value.includes(index);
 }
@@ -4848,8 +5088,17 @@ function handlePlaybackRateMenuClick(info) {
   setPlayerPlaybackRate(selectedRate);
 }
 
+function formatSubtitleFontScaleValueLabel(scale) {
+  const normalized = Number(scale || PLAYER_SUBTITLE_FONT_SCALE_DEFAULT);
+  const displayValue = Number(
+    Math.max(0, normalized - PLAYER_SUBTITLE_FONT_SCALE_DISPLAY_OFFSET).toFixed(2)
+  );
+  const hasFraction = Math.abs(displayValue % 1) > 0.001;
+  return `${hasFraction ? displayValue.toFixed(2).replace(/0+$/, "").replace(/\.$/, "") : displayValue.toFixed(0)}x`;
+}
+
 function formatSubtitleFontScaleLabel(scale) {
-  return `Aa ${formatPlaybackRateLabel(scale)}`;
+  return `Aa ${formatSubtitleFontScaleValueLabel(scale)}`;
 }
 
 function handleSubtitleFontScaleMenuClick(info) {
@@ -5460,9 +5709,21 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function shouldHighlightUnknownToken(rawToken, unknownWords, contextWordSet) {
+function getTokenWordFamiliarity(rawWord, contextWordSet) {
+  const normalizedWord = String(rawWord || "").trim().toLowerCase();
+  if (!isValidWordToken(normalizedWord)) {
+    return MAX_FAMILIARITY_LEVEL;
+  }
+
+  const directFamiliarity = getWordFamiliarity(normalizedWord);
+  const lemma = simpleLemmatize(normalizedWord, contextWordSet);
+  const lemmaFamiliarity = getWordFamiliarity(lemma);
+  return Math.max(directFamiliarity, lemmaFamiliarity);
+}
+
+function getSubtitleTokenHighlightClass(rawToken, contextWordSet) {
   const token = String(rawToken || "").toLowerCase();
-  if (!token) return false;
+  if (!token) return "";
 
   const parts = token
     .split("-")
@@ -5485,25 +5746,27 @@ function shouldHighlightUnknownToken(rawToken, unknownWords, contextWordSet) {
       .map((item) => item.trim().toLowerCase())
       .filter((item) => isValidWordToken(item));
 
+    let minFamiliarity = MAX_FAMILIARITY_LEVEL;
     for (const currentWord of expandedWords) {
-      if (unknownWords.has(currentWord)) {
-        return true;
+      const familiarity = getTokenWordFamiliarity(currentWord, contextWordSet);
+      if (familiarity === 0) {
+        return "player-word-highlight player-unknown-word";
       }
-      const lemma = simpleLemmatize(currentWord, contextWordSet);
-      if (unknownWords.has(lemma)) {
-        return true;
-      }
+      minFamiliarity = Math.min(minFamiliarity, familiarity);
+    }
+
+    if (expandedWords.length && minFamiliarity < MAX_FAMILIARITY_LEVEL) {
+      return `player-word-highlight player-familiarity-word player-familiarity-word-${minFamiliarity}`;
     }
   }
 
-  return false;
+  return "";
 }
 
 function renderSubtitleTextWithUnknownWords(text) {
   const sourceText = String(text || "");
   const escapedText = escapeHtml(sourceText);
-  const unknownWords = playerUnknownWordsFromTedAnalysis.value;
-  if (!unknownWords.size) {
+  if (!sourceText) {
     return escapedText;
   }
 
@@ -5520,8 +5783,9 @@ function renderSubtitleTextWithUnknownWords(text) {
     html += escapeHtml(sourceText.slice(lastIndex, tokenStart));
 
     const escapedToken = escapeHtml(token);
-    if (shouldHighlightUnknownToken(token, unknownWords, contextWordSet)) {
-      html += `<span class="player-unknown-word">${escapedToken}</span>`;
+    const highlightClassName = getSubtitleTokenHighlightClass(token, contextWordSet);
+    if (highlightClassName) {
+      html += `<span class="${highlightClassName}">${escapedToken}</span>`;
     } else {
       html += escapedToken;
     }
@@ -5738,6 +6002,52 @@ body {
   flex-direction: column;
   gap: 16px;
   height: calc(100vh - 104px);
+}
+
+.player-source-link {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid #dbe9ff;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.player-source-link:hover {
+  border-color: #91caff;
+  box-shadow: 0 8px 20px rgba(22, 119, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.player-source-link-label {
+  color: #0958d9;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.player-source-link-value {
+  color: #163250;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-source-link-hint {
+  color: #5b6b7f;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .player-content {
@@ -6087,13 +6397,36 @@ body {
   border-radius: 0;
 }
 
-.player-unknown-word {
-  background: #e6f4ff;
-  color: #262626;
+.player-word-highlight {
   border-radius: 4px;
   padding: 0 4px;
   margin: 0 1px;
   font-weight: 500;
+}
+
+.player-unknown-word {
+  background: #d8ebff;
+  color: #262626;
+}
+
+.player-familiarity-word {
+  color: #3a2b00;
+}
+
+.player-familiarity-word-1 {
+  background: #ffe7a6;
+}
+
+.player-familiarity-word-2 {
+  background: #ffedba;
+}
+
+.player-familiarity-word-3 {
+  background: #fff2cc;
+}
+
+.player-familiarity-word-4 {
+  background: #fff7df;
 }
 
 .player-subtitle-empty {
@@ -6107,8 +6440,8 @@ body {
 
 /* 左侧表格区域 */
 .table-section {
-  flex: 2 1 0;
-  width: auto;
+  flex: 1 1 0;
+  width: 50%;
   background: #fff;
   border-radius: 8px;
   padding: 20px;
@@ -6144,16 +6477,15 @@ body {
 
 /* 右侧配置区域 */
 .config-section {
-  flex: 3 1 0;
-  width: auto;
+  flex: 1 1 0;
+  width: 50%;
   background: #fff;
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
-  min-width: 280px;
+  min-width: 0;
 }
 
 .config-content {
@@ -6199,12 +6531,146 @@ body {
   margin-top: 8px;
 }
 
+.section-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #526275;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* 上方左右布局 */
 .config-top-section {
   display: flex;
   gap: 20px;
   margin-bottom: 20px;
   align-items: flex-start;
+}
+
+.ted-familiarity-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ted-familiarity-text {
+  color: #6b7a90;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.familiarity-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: calc(100vh - 104px);
+}
+
+.familiarity-overview-card,
+.familiarity-table-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.familiarity-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.familiarity-filter-card {
+  border: 1px solid #dbe9ff;
+  border-radius: 14px;
+  padding: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.familiarity-filter-card:hover {
+  border-color: #91caff;
+  box-shadow: 0 8px 18px rgba(22, 119, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.familiarity-filter-card.active {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.14);
+  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
+}
+
+.familiarity-filter-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.familiarity-filter-title {
+  color: #163250;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.familiarity-filter-count {
+  color: #1677ff;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.familiarity-filter-all-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e6f4ff;
+  color: #1677ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.familiarity-filter-desc {
+  margin-top: 10px;
+  color: #607286;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.familiarity-page-hint {
+  color: #7b8794;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.unmastered-word-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.unmastered-word-text {
+  color: #163250;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 /* 概览信息样式 */
@@ -6281,7 +6747,7 @@ body {
 
 .difficulty-summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -6294,11 +6760,6 @@ body {
   border-radius: 14px;
   background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
   border: 1px solid #dbe9ff;
-}
-
-.difficulty-summary-card-fit {
-  background: linear-gradient(180deg, #fffdf2 0%, #fff7e6 100%);
-  border-color: #ffe0b3;
 }
 
 .difficulty-card-header {
@@ -6335,13 +6796,6 @@ body {
   text-align: right;
 }
 
-.difficulty-fit-value {
-  font-size: 22px;
-  line-height: 1.2;
-  font-weight: 700;
-  color: #8c5f00;
-}
-
 .difficulty-bar-block {
   display: flex;
   flex-direction: column;
@@ -6357,10 +6811,6 @@ body {
 
 .difficulty-bar-neutral {
   background: linear-gradient(90deg, #d9f7be 0%, #fff7e6 50%, #ffccc7 100%);
-}
-
-.difficulty-bar-fit {
-  background: linear-gradient(90deg, #d9f7be 0%, #fff7e6 50%, #ffd6bf 75%, #ffccc7 100%);
 }
 
 .difficulty-bar-center-line {
@@ -6386,10 +6836,6 @@ body {
   transform: translate(-50%, -50%);
 }
 
-.difficulty-bar-marker-fit {
-  background: #ad6800;
-}
-
 .difficulty-bar-scale {
   display: flex;
   align-items: center;
@@ -6400,7 +6846,6 @@ body {
   line-height: 1.4;
 }
 
-.difficulty-fit-subvalue,
 .difficulty-card-desc {
   color: #5b6b7f;
   font-size: 13px;
@@ -6721,6 +7166,10 @@ body {
     width: 100%;
   }
 
+  .familiarity-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .difficulty-summary-grid,
   .difficulty-metrics-grid {
     grid-template-columns: 1fr;
@@ -6754,6 +7203,27 @@ body {
     padding: 15px;
   }
 
+  .player-source-link {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    align-items: flex-start;
+  }
+
+  .player-source-link-hint {
+    white-space: normal;
+  }
+
+  .section-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .section-toggle,
+  .familiarity-page-hint {
+    justify-content: space-between;
+    text-align: left;
+  }
+
   .settings-actions {
     align-items: stretch;
   }
@@ -6765,6 +7235,15 @@ body {
   .table-section,
   .config-section {
     padding: 15px;
+  }
+
+  .familiarity-overview-card,
+  .familiarity-table-card {
+    padding: 15px;
+  }
+
+  .familiarity-filter-grid {
+    grid-template-columns: 1fr;
   }
 
   .player-video-controls {
@@ -7176,8 +7655,5 @@ body {
     align-items: flex-start;
   }
 
-  .difficulty-fit-value {
-    font-size: 20px;
-  }
 }
 </style>
