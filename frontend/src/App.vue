@@ -19,6 +19,14 @@
               </button>
               <button
                 class="header-nav-item"
+                :class="{ active: currentPage === 'article' }"
+                :disabled="!canOpenArticlePage"
+                @click="goArticlePage"
+              >
+                Reader
+              </button>
+              <button
+                class="header-nav-item"
                 :class="{ active: currentPage === 'ted' && !showStatsPage }"
                 @click="goTedAnalysisPage"
               >
@@ -53,95 +61,150 @@
           <!-- ========== 首页 ========== -->
           <div v-if="currentPage === 'home'" class="home-player-page">
             <div
-              class="home-player-entry"
+              class="home-entry-grid"
               :class="{ 'no-history': playerHistoryVideos.length === 0 }"
             >
-              <div class="home-entry-title">
-                <h2>Import Local Material</h2>
-                <p>
-                  Upload a local video and English subtitles to cache them in this browser,
-                  or upload subtitles only to judge difficulty before importing the video.
-                </p>
-                <div class="home-build-meta">
-                  Current build (UTC+8): {{ appBuildTimeLabel }}
+              <div class="home-player-entry">
+                <div class="home-entry-title">
+                  <h2>Import Local Material</h2>
+                  <p>
+                    Upload a local video and English subtitles to cache them in this browser,
+                    or upload subtitles only to judge difficulty before importing the video.
+                  </p>
+                  <div class="home-build-meta">
+                    Current build (UTC+8): {{ appBuildTimeLabel }}
+                  </div>
+                </div>
+                <div class="home-entry-row">
+                  <a-input
+                    class="home-link-input"
+                    v-model:value="homeMaterialTitle"
+                    placeholder="Optional material title"
+                    :disabled="homeParseLoading"
+                  />
+                  <a-button
+                    :disabled="homeParseLoading"
+                    @click="triggerHomeVideoUpload"
+                  >
+                    Upload Video
+                  </a-button>
+                  <span
+                    class="home-upload-status"
+                    :class="{ ready: !!homeVideoFileName }"
+                  >
+                    {{ homeVideoFileName || "No video uploaded" }}
+                  </span>
+                  <a-button
+                    :disabled="homeParseLoading || homeAnalyzeLoading"
+                    @click="triggerHomeSubtitleUpload"
+                  >
+                    Upload Subtitles
+                  </a-button>
+                  <span
+                    class="home-upload-status"
+                    :class="{ ready: !!homeSubtitleFileName }"
+                  >
+                    {{ homeSubtitleFileName || "No subtitles uploaded" }}
+                  </span>
+                  <input
+                    ref="homeVideoInputRef"
+                    type="file"
+                    accept="video/*"
+                    style="display: none"
+                    :disabled="homeParseLoading"
+                    @change="handleHomeVideoFileChange"
+                  />
+                  <input
+                    ref="homeSubtitleInputRef"
+                    type="file"
+                    :accept="homeSubtitleAccept"
+                    style="display: none"
+                    :disabled="homeParseLoading || homeAnalyzeLoading"
+                    @change="handleHomeSubtitleFileChange"
+                  />
+                </div>
+                <a-alert
+                  v-if="homeError"
+                  :message="homeError"
+                  type="error"
+                  show-icon
+                  closable
+                  @close="homeError = ''"
+                  style="margin-top: 12px"
+                />
+                <div class="home-entry-next">
+                  <a-button
+                    type="primary"
+                    :loading="homeParseLoading"
+                    :disabled="!homeCanImportMaterial"
+                    @click="importHomeMaterial"
+                  >
+                    Import & Learn
+                  </a-button>
+                  <a-button
+                    :loading="homeAnalyzeLoading"
+                    :disabled="!homeCanAnalyzeSubtitleOnly"
+                    @click="analyzeHomeSubtitleOnly"
+                  >
+                    Analyze Subtitle Only
+                  </a-button>
+                </div>
+                <div v-if="homeResolvedTitle" class="home-entry-video-title">
+                  Ready title: {{ homeResolvedTitle }}
                 </div>
               </div>
-              <div class="home-entry-row">
-                <a-input
-                  class="home-link-input"
-                  v-model:value="homeMaterialTitle"
-                  placeholder="Optional material title"
-                  :disabled="homeParseLoading"
+
+              <div class="home-player-entry home-article-entry">
+                <div class="home-entry-title">
+                  <h2>Paste Article</h2>
+                  <p>
+                    Paste an English article, then jump straight into the reader with the
+                    same word-highlighting and vocabulary analysis workflow.
+                  </p>
+                </div>
+                <div class="home-entry-row home-entry-row-vertical">
+                  <a-input
+                    v-model:value="homeArticleTitle"
+                    placeholder="Optional article title"
+                  />
+                  <a-textarea
+                    v-model:value="homeArticleText"
+                    class="home-article-textarea"
+                    :auto-size="{ minRows: 10, maxRows: 16 }"
+                    placeholder="Paste the article text here..."
+                  />
+                </div>
+                <a-alert
+                  v-if="homeArticleError"
+                  :message="homeArticleError"
+                  type="error"
+                  show-icon
+                  closable
+                  @close="homeArticleError = ''"
+                  style="margin-top: 12px"
                 />
-                <a-button
-                  :disabled="homeParseLoading"
-                  @click="triggerHomeVideoUpload"
+                <div class="home-entry-next">
+                  <a-button
+                    type="primary"
+                    :disabled="!homeCanStartArticleLearning"
+                    @click="startHomeArticleLearning"
+                  >
+                    Start Learning
+                  </a-button>
+                  <a-button
+                    :disabled="!homeCanStartArticleLearning"
+                    @click="analyzeHomeArticle"
+                  >
+                    Analyze Article
+                  </a-button>
+                </div>
+                <div
+                  v-if="homeResolvedArticleTitle || homeArticleSummaryLabel"
+                  class="home-entry-video-title"
                 >
-                  Upload Video
-                </a-button>
-                <span
-                  class="home-upload-status"
-                  :class="{ ready: !!homeVideoFileName }"
-                >
-                  {{ homeVideoFileName || "No video uploaded" }}
-                </span>
-                <a-button
-                  :disabled="homeParseLoading || homeAnalyzeLoading"
-                  @click="triggerHomeSubtitleUpload"
-                >
-                  Upload Subtitles
-                </a-button>
-                <span
-                  class="home-upload-status"
-                  :class="{ ready: !!homeSubtitleFileName }"
-                >
-                  {{ homeSubtitleFileName || "No subtitles uploaded" }}
-                </span>
-                <input
-                  ref="homeVideoInputRef"
-                  type="file"
-                  accept="video/*"
-                  style="display: none"
-                  :disabled="homeParseLoading"
-                  @change="handleHomeVideoFileChange"
-                />
-                <input
-                  ref="homeSubtitleInputRef"
-                  type="file"
-                  :accept="homeSubtitleAccept"
-                  style="display: none"
-                  :disabled="homeParseLoading || homeAnalyzeLoading"
-                  @change="handleHomeSubtitleFileChange"
-                />
-              </div>
-              <a-alert
-                v-if="homeError"
-                :message="homeError"
-                type="error"
-                show-icon
-                closable
-                @close="homeError = ''"
-                style="margin-top: 12px"
-              />
-              <div class="home-entry-next">
-                <a-button
-                  type="primary"
-                  :loading="homeParseLoading"
-                  :disabled="!homeCanImportMaterial"
-                  @click="importHomeMaterial"
-                >
-                  Import & Learn
-                </a-button>
-                <a-button
-                  :loading="homeAnalyzeLoading"
-                  :disabled="!homeCanAnalyzeSubtitleOnly"
-                  @click="analyzeHomeSubtitleOnly"
-                >
-                  Analyze Subtitle Only
-                </a-button>
-              </div>
-              <div v-if="homeResolvedTitle" class="home-entry-video-title">
-                Ready title: {{ homeResolvedTitle }}
+                  Ready article: {{ homeResolvedArticleTitle || "Untitled Article" }}
+                  <span v-if="homeArticleSummaryLabel"> · {{ homeArticleSummaryLabel }}</span>
+                </div>
               </div>
             </div>
 
@@ -190,18 +253,16 @@
                     class="home-history-thumb"
                     :class="{ placeholder: true }"
                   >
-                    <span>{{ item.hasVideo ? "Local video cached" : "Subtitle only" }}</span>
+                    <span>{{ getHistoryThumbLabel(item) }}</span>
                   </div>
                   <div class="home-history-title">
                     {{ getHistoryDisplayTitle(item) }}
                   </div>
                   <div class="home-history-url">
-                    {{ item.videoFileName || item.subtitleFileName || item.url }}
+                    {{ getHistoryPreviewLabel(item) }}
                   </div>
                   <div class="home-history-meta">
-                    {{ (item.subtitleLines || []).length }} subtitle lines
-                    ·
-                    {{ item.videoFileName ? "video cached" : "subtitle only" }}
+                    {{ getHistoryMetaLabel(item) }}
                   </div>
                 </div>
               </div>
@@ -290,7 +351,7 @@
               <div class="section-header section-header-row">
                 <div>
                   <h2>Word List</h2>
-                  <p>5-star words are hidden by default.</p>
+                  <p>{{ tedWordListHint }}</p>
                 </div>
                 <label class="section-toggle">
                   <span>Show 5-Star</span>
@@ -512,7 +573,10 @@
                   </div>
                 </div>
 
-                <div class="difficulty-section" v-if="tedDifficultyAssessment">
+                <div
+                  class="difficulty-section"
+                  v-if="tedShouldShowDifficultyAssessment && tedDifficultyAssessment"
+                >
                   <div class="section-header">
                     <h2>Difficulty Assessment</h2>
                     <p>Based on {{ tedDifficultyAssessment.sampleLabel }}, combining material-level and personal difficulty.</p>
@@ -710,6 +774,73 @@
                   </template>
                 </template>
               </a-table>
+            </div>
+          </div>
+
+          <div v-if="currentPage === 'article'" class="article-page">
+            <div class="article-header-card">
+              <div class="section-header section-header-row">
+                <div>
+                  <h2>{{ articleTitle || "Untitled Article" }}</h2>
+                  <p>{{ articleSummaryLabel }}</p>
+                </div>
+                <div class="article-header-actions">
+                  <a-dropdown :trigger="['click']" placement="bottomRight">
+                    <a-button
+                      class="player-control-trigger-btn article-font-scale-trigger-btn"
+                      title="Article text size"
+                      :disabled="!articleParagraphs.length"
+                    >
+                      {{ formatSubtitleFontScaleLabel(playerSubtitleFontScale) }}
+                    </a-button>
+                    <template #overlay>
+                      <a-menu
+                        :selectedKeys="[String(playerSubtitleFontScale)]"
+                        @click="handleSubtitleFontScaleMenuClick"
+                      >
+                        <a-menu-item
+                          v-for="scale in playerSubtitleFontScaleOptions"
+                          :key="String(scale)"
+                        >
+                          {{ formatSubtitleFontScaleValueLabel(scale) }}
+                        </a-menu-item>
+                      </a-menu>
+                    </template>
+                  </a-dropdown>
+                  <a-button
+                    type="primary"
+                    :disabled="!canAnalyzeCurrentArticle"
+                    @click="analyzeCurrentArticleVocabulary"
+                  >
+                    Vocabulary
+                  </a-button>
+                </div>
+              </div>
+
+              <div class="article-highlight-legend">
+                <span class="article-highlight-pill article-highlight-pill-unknown">
+                  Blue = new word
+                </span>
+                <span class="article-highlight-pill article-highlight-pill-familiar">
+                  Yellow = familiar word
+                </span>
+              </div>
+            </div>
+
+            <div class="article-reader-card" :style="playerSubtitleStyleVars">
+              <div v-if="!articleParagraphs.length" class="player-subtitle-empty">
+                No article loaded
+              </div>
+              <div v-else class="article-reader-content">
+                <div class="article-paragraph-list">
+                  <p
+                    v-for="(paragraph, idx) in articleParagraphs"
+                    :key="`article-paragraph-${idx}`"
+                    class="article-paragraph"
+                    v-html="renderArticleTextWithWordHighlights(paragraph)"
+                  ></p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1168,7 +1299,7 @@ function isIOSLikeDevice() {
 const homeSubtitleAccept = isIOSLikeDevice() ? "*/*" : DEFAULT_SUBTITLE_ACCEPT;
 
 // 页面导航状态
-const currentPage = ref("home"); // 'home' | 'ted' | 'familiarity' | 'player' | 'settings'
+const currentPage = ref("home"); // 'home' | 'ted' | 'familiarity' | 'player' | 'article' | 'settings'
 const showStatsPage = ref(false);
 const statsGranularity = ref("day");
 
@@ -1191,7 +1322,26 @@ function goPlayerPage() {
   currentPage.value = "player";
 }
 
+function goArticlePage() {
+  if (!canOpenArticlePage.value) {
+    message.info("Paste or open an article first.");
+    return;
+  }
+  showStatsPage.value = false;
+  currentPage.value = "article";
+}
+
 function goTedAnalysisPage() {
+  if (currentPage.value === "article" && canAnalyzeCurrentArticle.value) {
+    void analyzeCurrentArticleVocabulary();
+    return;
+  }
+
+  if (currentPage.value === "player" && canAnalyzeCurrentPlayerSubtitle.value) {
+    void analyzeCurrentSubtitleVocabulary();
+    return;
+  }
+
   openTedPage();
 }
 
@@ -1214,6 +1364,11 @@ function reopenExistingPlayerPage() {
   playerError.value = "";
   showStatsPage.value = false;
   currentPage.value = "player";
+}
+
+function reopenExistingArticlePage() {
+  showStatsPage.value = false;
+  currentPage.value = "article";
 }
 
 function formatWordLevelLabel(label) {
@@ -1295,6 +1450,9 @@ const homeSubtitleFile = ref(null);
 const homeSubtitleFileName = ref("");
 const homeSubtitleInputRef = ref(null);
 const homeParsedLines = ref([]);
+const homeArticleTitle = ref("");
+const homeArticleText = ref("");
+const homeArticleError = ref("");
 const homeHistorySelectionMode = ref(false);
 const homeSelectedHistoryIds = ref([]);
 
@@ -1316,7 +1474,30 @@ const homeCanAnalyzeSubtitleOnly = computed(() => {
   return !!homeSubtitleFile.value;
 });
 
+const homeNormalizedArticleText = computed(() =>
+  normalizeArticleText(homeArticleText.value)
+);
+const homeArticleParagraphs = computed(() =>
+  splitArticleIntoParagraphs(homeNormalizedArticleText.value)
+);
+const homeResolvedArticleTitle = computed(() =>
+  deriveArticleMaterialTitle({
+    title: homeArticleTitle.value,
+    articleText: homeNormalizedArticleText.value,
+  })
+);
+const homeCanStartArticleLearning = computed(() =>
+  homeArticleParagraphs.value.length > 0
+);
+const homeArticleSummaryLabel = computed(() => {
+  const summary = buildTextMaterialSummary(
+    buildArticleAnalysisLines(homeArticleParagraphs.value)
+  );
+  return summary ? summary.readingLabel : "";
+});
+
 const canOpenPlayerPage = computed(() => !!playerVideoId.value);
+const canOpenArticlePage = computed(() => articleParagraphs.value.length > 0);
 const appBuildTimeLabel = computed(() => formatBuildTimeUtc(APP_BUILD_TIME_ISO));
 
 // ===== TED页面状态 =====
@@ -1361,6 +1542,7 @@ const tedResults = ref([]);
 const tedSubtitleFile = ref(null);
 const tedSubtitleFileName = ref("");
 const tedSubtitleLines = ref([]);
+const tedSourceKind = ref("subtitle");
 
 const lastTedAnalysisMeta = ref({
   source: "",
@@ -1478,11 +1660,28 @@ const tedTagCounts = computed(() => {
 });
 
 const tedDifficultyAssessment = computed(() => {
-  if (!tedResults.value.length || !tedSubtitleLines.value.length) {
+  if (
+    tedSourceKind.value === "article" ||
+    !tedResults.value.length ||
+    !tedSubtitleLines.value.length
+  ) {
     return null;
   }
 
   return buildTranscriptDifficultyAssessment(tedSubtitleLines.value);
+});
+
+const tedShouldShowDifficultyAssessment = computed(
+  () => tedSourceKind.value !== "article"
+);
+
+const tedWordListHint = computed(() => {
+  const title = normalizeSubtitleText(youtubeVideoTitle.value || "");
+  const sourceLabel = tedSourceKind.value === "article" ? "Article" : "Material";
+  if (!title) {
+    return "5-star words are hidden by default.";
+  }
+  return `${sourceLabel}: ${title}. 5-star words are hidden by default.`;
 });
 
 const familiarityReviewSelectedStar = ref(REVIEW_FAMILIARITY_ALL_KEY);
@@ -1604,6 +1803,34 @@ const familiarityReviewPageTitle = computed(() => {
 
   return `${familiarityReviewSelectedStar.value}-Star Words`;
 });
+
+// ===== 文章学习页面状态 =====
+const articleMaterialUrl = ref("");
+const articleMaterialId = ref("");
+const articleTitle = ref("");
+const articleText = ref("");
+
+const articleParagraphs = computed(() => splitArticleIntoParagraphs(articleText.value));
+const articleAnalysisLines = computed(() =>
+  buildArticleAnalysisLines(articleParagraphs.value)
+);
+const articleWordSet = computed(() => {
+  const set = new Set();
+  articleParagraphs.value.forEach((paragraph) => {
+    extractWordsFromText(paragraph).forEach((word) => set.add(word));
+  });
+  return set;
+});
+const articleSummary = computed(() =>
+  buildTextMaterialSummary(articleAnalysisLines.value)
+);
+const articleSummaryLabel = computed(() => {
+  if (!articleSummary.value) {
+    return "Paste an article to start reading.";
+  }
+  return articleSummary.value.readingLabel;
+});
+const canAnalyzeCurrentArticle = computed(() => articleAnalysisLines.value.length > 0);
 
 // ===== 未学习单词弹框 =====
 const unmasteredWordsModal = ref({
@@ -2147,6 +2374,13 @@ function getHistoryDisplayTitle(item) {
     return rawTitle;
   }
 
+  if (item?.materialType === "article") {
+    return deriveArticleMaterialTitle({
+      title: item?.title || "",
+      articleText: item?.articleText || "",
+    });
+  }
+
   return (
     stripFileExtension(item?.videoFileName || "") ||
     stripFileExtension(item?.subtitleFileName || "") ||
@@ -2166,6 +2400,39 @@ function decodeHtmlEntities(value) {
 
 function normalizeSubtitleText(value) {
   return decodeHtmlEntities(stripHtmlTags(value || "")).replace(/\s+/g, " ").trim();
+}
+
+function normalizeArticleText(value) {
+  const plainText = decodeHtmlEntities(stripHtmlTags(value || "")).replace(/\r/g, "");
+  return plainText
+    .split(/\n{2,}/)
+    .map((paragraph) =>
+      paragraph
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function splitArticleIntoParagraphs(value) {
+  const normalized = normalizeArticleText(value);
+  if (!normalized) {
+    return [];
+  }
+  return normalized.split(/\n{2,}/).filter(Boolean);
+}
+
+function truncateText(value, maxLength = 96) {
+  const normalized = String(value || "").trim();
+  if (!normalized || normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
 function parseTimestampToSeconds(raw) {
@@ -2366,6 +2633,18 @@ function deriveLocalMaterialTitle({ title, videoFileName, subtitleFileName }) {
   if (subtitleTitle) return subtitleTitle;
 
   return "Local Material";
+}
+
+function deriveArticleMaterialTitle({ title, articleText }) {
+  const manualTitle = normalizeSubtitleText(title || "");
+  if (manualTitle) return manualTitle;
+
+  const [firstParagraph = ""] = splitArticleIntoParagraphs(articleText || "");
+  if (firstParagraph) {
+    return truncateText(firstParagraph, 72);
+  }
+
+  return "Untitled Article";
 }
 
 function openLocalVideoDb() {
@@ -3164,6 +3443,49 @@ function buildNormalizedTranscriptLemmaLines(lines) {
       .map((rawWord) => simpleLemmatize(rawWord, transcriptWordSet))
       .filter(Boolean)
   );
+}
+
+function buildArticleAnalysisLines(paragraphs) {
+  return (Array.isArray(paragraphs) ? paragraphs : [])
+    .map((paragraph, index) => {
+      const text = normalizeSubtitleText(paragraph || "");
+      if (!text) {
+        return null;
+      }
+
+      return {
+        index,
+        start: index,
+        end: index + 1,
+        duration: 1,
+        text,
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildTextMaterialSummary(lines) {
+  if (!Array.isArray(lines) || !lines.length) {
+    return null;
+  }
+
+  const normalizedLineWords = buildNormalizedTranscriptLemmaLines(lines);
+  const uniqueWords = new Set();
+  let totalWords = 0;
+
+  normalizedLineWords.forEach((words) => {
+    words.forEach((word) => {
+      totalWords += 1;
+      uniqueWords.add(word);
+    });
+  });
+
+  return {
+    paragraphCount: lines.length,
+    totalWords,
+    uniqueWords: uniqueWords.size,
+    readingLabel: `${lines.length} paragraphs · ${totalWords} words · ${uniqueWords.size} unique`,
+  };
 }
 
 function clampNumber(value, min, max) {
@@ -4022,6 +4344,51 @@ function handleTedSubtitleFileChange(event) {
   parsedYoutubeUrl.value = "";
 }
 
+async function startHomeArticleLearning() {
+  if (!homeCanStartArticleLearning.value) {
+    homeArticleError.value = "Paste an article first.";
+    return;
+  }
+
+  homeArticleError.value = "";
+  const normalizedText = homeNormalizedArticleText.value;
+  const title = homeResolvedArticleTitle.value;
+  const materialId = `article-${computeTranscriptHash(
+    buildArticleAnalysisLines(homeArticleParagraphs.value)
+  )}`;
+  const materialUrl = buildLocalMaterialUrl(materialId);
+
+  const entry = upsertPlayerHistory({
+    url: materialUrl,
+    videoId: materialId,
+    title,
+    materialType: "article",
+    articleText: normalizedText,
+    hasVideo: false,
+  });
+
+  openArticleMaterial(entry);
+  message.success(`Ready to read: ${title}`);
+}
+
+async function analyzeHomeArticle() {
+  if (!homeCanStartArticleLearning.value) {
+    homeArticleError.value = "Paste an article first.";
+    return;
+  }
+
+  homeArticleError.value = "";
+  const normalizedText = homeNormalizedArticleText.value;
+  const title = homeResolvedArticleTitle.value;
+
+  articleMaterialUrl.value = "";
+  articleMaterialId.value = "";
+  articleTitle.value = title;
+  articleText.value = normalizedText;
+
+  await analyzeCurrentArticleVocabulary();
+}
+
 async function analyzeHomeSubtitleOnly() {
   if (!homeCanAnalyzeSubtitleOnly.value) {
     homeError.value = "Choose a local subtitle file first.";
@@ -4049,6 +4416,7 @@ async function analyzeHomeSubtitleOnly() {
         language: `Local subtitles · ${homeSubtitleFileName.value || "Untitled"}`,
       },
     ];
+    tedSourceKind.value = "subtitle";
     selectedYoutubeSubtitle.value = "local";
     tedSubtitleLines.value = lines;
     tedSubtitleFileName.value = homeSubtitleFileName.value;
@@ -4062,6 +4430,30 @@ async function analyzeHomeSubtitleOnly() {
   } finally {
     homeAnalyzeLoading.value = false;
   }
+}
+
+function openArticleMaterial(item) {
+  if (!item?.url) return;
+
+  const normalizedText = normalizeArticleText(item.articleText || "");
+  const normalizedTitle = getHistoryDisplayTitle(item);
+  const normalizedId =
+    parseLocalMaterialId(item.url) || String(item.videoId || item.id || "").trim();
+
+  articleMaterialUrl.value = item.url;
+  articleMaterialId.value = normalizedId;
+  articleTitle.value = normalizedTitle;
+  articleText.value = normalizedText;
+
+  upsertPlayerHistory({
+    url: item.url,
+    videoId: normalizedId,
+    title: normalizedTitle,
+    materialType: "article",
+    articleText: normalizedText,
+    hasVideo: false,
+  });
+  reopenExistingArticlePage();
 }
 
 async function openLocalMaterialInPlayer(item, options = {}) {
@@ -4148,6 +4540,10 @@ async function importHomeMaterial() {
 
 async function startLearningFromHistory(item) {
   if (!item || !item.url) return;
+  if (getHistoryMaterialType(item) === "article") {
+    openArticleMaterial(item);
+    return;
+  }
   if (!item.hasVideo) {
     message.info("This entry only has subtitles. Import a video file to study it in Player.");
     return;
@@ -4193,6 +4589,38 @@ async function handleHomeHistoryCardClick(item) {
   }
 
   await startLearningFromHistory(item);
+}
+
+function getHistoryMaterialType(item) {
+  return item?.materialType === "article" ? "article" : "video";
+}
+
+function getHistoryThumbLabel(item) {
+  if (getHistoryMaterialType(item) === "article") {
+    return "Article reader";
+  }
+  return item?.hasVideo ? "Local video cached" : "Subtitle only";
+}
+
+function getHistoryPreviewLabel(item) {
+  if (getHistoryMaterialType(item) === "article") {
+    return truncateText(normalizeSubtitleText(item?.articleText || ""), 120) || "Article text";
+  }
+  return item?.videoFileName || item?.subtitleFileName || item?.url || "";
+}
+
+function getHistoryMetaLabel(item) {
+  if (getHistoryMaterialType(item) === "article") {
+    const summary = buildTextMaterialSummary(
+      buildArticleAnalysisLines(splitArticleIntoParagraphs(item?.articleText || ""))
+    );
+    return summary
+      ? `${summary.paragraphCount} paragraphs · ${summary.totalWords} words · article`
+      : "Article";
+  }
+
+  const lineCount = Array.isArray(item?.subtitleLines) ? item.subtitleLines.length : 0;
+  return `${lineCount} subtitle lines · ${item?.videoFileName ? "video cached" : "subtitle only"}`;
 }
 
 function removeHistoryVideo(historyId) {
@@ -4280,6 +4708,10 @@ function savePlayerHistory() {
     playerHistoryVideos.value = playerHistoryVideos.value.slice(0, 10).map((item) => ({
       ...item,
       subtitleLines: (item.subtitleLines || []).slice(0, 400),
+      articleText:
+        item.materialType === "article"
+          ? String(item.articleText || "").slice(0, 12000)
+          : item.articleText,
     }));
 
     try {
@@ -4302,6 +4734,8 @@ function upsertPlayerHistory({
   subtitleLines,
   videoFileName,
   hasVideo,
+  materialType,
+  articleText,
 }) {
   const normalizedUrl = normalizeYoutubeUrl(url);
   if (!normalizedUrl) return null;
@@ -4317,10 +4751,15 @@ function upsertPlayerHistory({
     url: normalizedUrl,
     videoId: videoId || existing?.videoId || "",
     title: title || existing?.title || normalizedUrl,
+    materialType: materialType || existing?.materialType || "video",
     subtitleCode: subtitleCode || existing?.subtitleCode || "local",
     subtitleFileName: subtitleFileName || existing?.subtitleFileName || "",
     videoFileName: videoFileName || existing?.videoFileName || "",
     hasVideo: typeof hasVideo === "boolean" ? hasVideo : existing?.hasVideo ?? false,
+    articleText:
+      typeof articleText === "string" && articleText.trim()
+        ? articleText
+        : existing?.articleText || "",
     subtitleLines:
       Array.isArray(subtitleLines) && subtitleLines.length
         ? subtitleLines
@@ -4368,6 +4807,7 @@ async function loadYoutubeSubtitles() {
 
     parsedYoutubeUrl.value = url;
     youtubeVideoTitle.value = `YouTube Video (${videoId})`;
+    tedSourceKind.value = "subtitle";
     tedSubtitleLines.value = lines;
     youtubeSubtitles.value = [
       {
@@ -5685,6 +6125,7 @@ async function analyzeCurrentSubtitleVocabulary() {
   youtubeUrl.value = playerParsedYoutubeUrl.value;
   parsedYoutubeUrl.value = playerParsedYoutubeUrl.value;
   youtubeVideoTitle.value = playerVideoTitle.value;
+  tedSourceKind.value = "subtitle";
   youtubeSubtitles.value = [
     {
       language_code: "local",
@@ -5694,6 +6135,35 @@ async function analyzeCurrentSubtitleVocabulary() {
   selectedYoutubeSubtitle.value = "local";
   tedSubtitleLines.value = playerTranscriptLines.value.slice();
   tedSubtitleFileName.value = playerSubtitleFileName.value;
+
+  openTedPage();
+  await nextTick();
+  await analyzeTedFile();
+}
+
+async function analyzeCurrentArticleVocabulary() {
+  if (!canAnalyzeCurrentArticle.value) {
+    message.info("Load an article first.");
+    return;
+  }
+
+  const materialUrl =
+    articleMaterialUrl.value ||
+    `local-article-analysis:${articleTitle.value}:${computeTranscriptHash(articleAnalysisLines.value)}`;
+
+  youtubeUrl.value = materialUrl;
+  parsedYoutubeUrl.value = materialUrl;
+  youtubeVideoTitle.value = articleTitle.value || "Untitled Article";
+  tedSourceKind.value = "article";
+  youtubeSubtitles.value = [
+    {
+      language_code: "article",
+      language: "Article text",
+    },
+  ];
+  selectedYoutubeSubtitle.value = "article";
+  tedSubtitleLines.value = articleAnalysisLines.value.slice();
+  tedSubtitleFileName.value = "";
 
   openTedPage();
   await nextTick();
@@ -5763,14 +6233,13 @@ function getSubtitleTokenHighlightClass(rawToken, contextWordSet) {
   return "";
 }
 
-function renderSubtitleTextWithUnknownWords(text) {
+function renderTextWithWordHighlights(text, contextWordSet) {
   const sourceText = String(text || "");
   const escapedText = escapeHtml(sourceText);
   if (!sourceText) {
     return escapedText;
   }
 
-  const contextWordSet = playerTranscriptWordSet.value;
   const tokenPattern = new RegExp(WORD_PATTERN.source, "g");
   let html = "";
   let lastIndex = 0;
@@ -5796,6 +6265,14 @@ function renderSubtitleTextWithUnknownWords(text) {
 
   html += escapeHtml(sourceText.slice(lastIndex));
   return html;
+}
+
+function renderSubtitleTextWithUnknownWords(text) {
+  return renderTextWithWordHighlights(text, playerTranscriptWordSet.value);
+}
+
+function renderArticleTextWithWordHighlights(text) {
+  return renderTextWithWordHighlights(text, articleWordSet.value);
 }
 
 function formatSubtitleTime(seconds) {
@@ -6436,6 +6913,84 @@ body {
   align-items: center;
   color: #999;
   font-size: 14px;
+}
+
+.article-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: calc(100vh - 104px);
+}
+
+.article-header-card,
+.article-reader-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.article-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.article-highlight-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.article-highlight-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.article-highlight-pill-unknown {
+  background: #d8ebff;
+  color: #163250;
+}
+
+.article-highlight-pill-familiar {
+  background: #fff2cc;
+  color: #5d4300;
+}
+
+.article-reader-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.article-reader-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.article-paragraph-list {
+  width: min(900px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.article-paragraph {
+  margin: 0;
+  color: #262626;
+  font-size: calc(20px * var(--player-subtitle-font-scale, 1));
+  line-height: 1.95;
+  text-indent: 2em;
 }
 
 /* 左侧表格区域 */
@@ -7143,6 +7698,10 @@ body {
     height: auto;
   }
 
+  .article-page {
+    height: auto;
+  }
+
   .player-content {
     flex-direction: column;
     min-height: auto;
@@ -7156,6 +7715,10 @@ body {
 
   .player-subtitle-panel {
     height: 460px;
+  }
+
+  .article-reader-card {
+    min-height: 560px;
   }
 
   .table-section {
@@ -7252,6 +7815,10 @@ body {
     gap: 10px;
   }
 
+  .article-header-actions {
+    justify-content: space-between;
+  }
+
   .player-progress-row {
     grid-template-columns: 52px minmax(0, 1fr) 52px;
     gap: 8px;
@@ -7339,6 +7906,11 @@ body {
     font-size: calc(16px * var(--player-subtitle-font-scale, 1));
   }
 
+  .article-paragraph {
+    font-size: calc(18px * var(--player-subtitle-font-scale, 1));
+    line-height: 1.85;
+  }
+
   .home-entry-row {
     flex-direction: column;
     align-items: stretch;
@@ -7365,6 +7937,17 @@ body {
   flex-direction: column;
   gap: 16px;
   min-height: calc(100vh - 104px);
+}
+
+.home-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.home-entry-grid.no-history {
+  width: min(1280px, 100%);
+  margin: auto;
 }
 
 .home-player-entry {
@@ -7416,8 +7999,22 @@ body {
   gap: 10px;
 }
 
+.home-entry-row-vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 .home-link-input {
   width: clamp(240px, 46vw, 460px);
+}
+
+.home-article-entry {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-article-textarea {
+  width: 100%;
 }
 
 .home-upload-status {
