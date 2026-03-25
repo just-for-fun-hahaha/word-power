@@ -787,7 +787,7 @@
                 <div class="article-header-actions">
                   <a-dropdown :trigger="['click']" placement="bottomRight">
                     <a-button
-                      class="player-control-trigger-btn article-font-scale-trigger-btn"
+                      class="player-control-trigger-btn article-header-btn article-font-scale-trigger-btn"
                       title="Article text size"
                       :disabled="!articleParagraphs.length"
                     >
@@ -808,6 +808,7 @@
                     </template>
                   </a-dropdown>
                   <a-button
+                    class="article-header-btn"
                     type="primary"
                     :disabled="!canAnalyzeCurrentArticle"
                     @click="analyzeCurrentArticleVocabulary"
@@ -816,29 +817,47 @@
                   </a-button>
                 </div>
               </div>
-
-              <div class="article-highlight-legend">
-                <span class="article-highlight-pill article-highlight-pill-unknown">
-                  Blue = new word
-                </span>
-                <span class="article-highlight-pill article-highlight-pill-familiar">
-                  Yellow = familiar word
-                </span>
-              </div>
             </div>
 
-            <div class="article-reader-card" :style="playerSubtitleStyleVars">
-              <div v-if="!articleParagraphs.length" class="player-subtitle-empty">
-                No article loaded
+            <div class="article-content-layout">
+              <div class="article-sidebar">
+                <div class="article-sidebar-card">
+                  <div class="article-sidebar-header">
+                    <h3>Coverage Snapshot</h3>
+                  </div>
+
+                  <div class="article-coverage-list">
+                    <div
+                      v-for="card in articleCoverageCards"
+                      :key="card.key"
+                      class="article-coverage-card"
+                    >
+                      <div class="article-coverage-top">
+                        <div class="article-coverage-title">{{ card.title }}</div>
+                        <div class="article-coverage-value">{{ card.percent }}%</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div v-else class="article-reader-content">
-                <div class="article-paragraph-list">
-                  <p
-                    v-for="(paragraph, idx) in articleParagraphs"
-                    :key="`article-paragraph-${idx}`"
-                    class="article-paragraph"
-                    v-html="renderArticleTextWithWordHighlights(paragraph)"
-                  ></p>
+
+              <div class="article-reader-card" :style="playerSubtitleStyleVars">
+                <div v-if="!articleParagraphs.length" class="player-subtitle-empty">
+                  No article loaded
+                </div>
+                <div
+                  v-else
+                  class="article-reader-content"
+                  @click="handleArticleWordActionTrigger"
+                >
+                  <div class="article-paragraph-list">
+                    <p
+                      v-for="(paragraph, idx) in articleParagraphs"
+                      :key="`article-paragraph-${idx}`"
+                      class="article-paragraph"
+                      v-html="renderArticleTextWithWordHighlights(paragraph)"
+                    ></p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1067,6 +1086,7 @@
                   v-else
                   ref="playerSubtitleListRef"
                   class="player-subtitle-list"
+                  @click.capture="handlePlayerWordActionTrigger"
                 >
                   <div
                     v-for="(line, idx) in playerTranscriptLines"
@@ -1217,6 +1237,51 @@
             </template>
           </template>
         </a-table>
+      </div>
+    </a-modal>
+
+    <a-modal
+      v-model:open="articleWordAction.open"
+      title="Word Actions"
+      :footer="null"
+      width="440px"
+    >
+      <div class="article-word-action-panel">
+        <div class="article-word-action-token">
+          {{ articleWordAction.displayToken || "-" }}
+        </div>
+        <div
+          v-if="articleWordActionTargetHint"
+          class="article-word-action-target-hint"
+        >
+          {{ articleWordActionTargetHint }}
+        </div>
+
+        <div class="article-word-action-toolbar">
+          <a-button @click="copyCurrentArticleActionWord">
+            Copy
+          </a-button>
+          <a-button
+            danger
+            :disabled="!articleWordAction.targetWord"
+            @click="clearCurrentArticleActionWordFamiliarity"
+          >
+            Clear Rating
+          </a-button>
+        </div>
+
+        <div class="article-word-action-rating">
+          <div class="article-word-action-rating-label">Familiarity</div>
+          <a-rate
+            :value="articleWordActionCurrentFamiliarity"
+            :count="5"
+            allow-clear
+            @change="handleCurrentArticleActionFamiliarityChange"
+          />
+          <div class="article-word-action-rating-text">
+            {{ formatFamiliarityLabel(articleWordActionCurrentFamiliarity) }}
+          </div>
+        </div>
       </div>
     </a-modal>
   </a-config-provider>
@@ -1824,6 +1889,45 @@ const articleWordSet = computed(() => {
 const articleSummary = computed(() =>
   buildTextMaterialSummary(articleAnalysisLines.value)
 );
+const articleCoverageStats = computed(() =>
+  buildTextMaterialCoverageStats(articleAnalysisLines.value)
+);
+const articleCoverageCards = computed(() => {
+  const stats = articleCoverageStats.value;
+  return [
+    {
+      key: "top3000",
+      title: "Top 3000 Coverage",
+      percent: stats.top3000Percent,
+    },
+    {
+      key: "top5000",
+      title: "Top 5000 Coverage",
+      percent: stats.top5000Percent,
+    },
+    {
+      key: "mastered",
+      title: "My Mastered Coverage",
+      percent: stats.masteredPercent,
+    },
+  ];
+});
+const articleWordAction = ref({
+  open: false,
+  displayToken: "",
+  targetWord: "",
+});
+const articleWordActionCurrentFamiliarity = computed(() =>
+  getWordFamiliarity(articleWordAction.value.targetWord)
+);
+const articleWordActionTargetHint = computed(() => {
+  const displayToken = String(articleWordAction.value.displayToken || "").trim().toLowerCase();
+  const targetWord = String(articleWordAction.value.targetWord || "").trim().toLowerCase();
+  if (!displayToken || !targetWord || displayToken === targetWord) {
+    return "";
+  }
+  return `Rating applies to ${targetWord}`;
+});
 const articleSummaryLabel = computed(() => {
   if (!articleSummary.value) {
     return "Paste an article to start reading.";
@@ -2134,6 +2238,10 @@ watch(currentPage, async (newPage, oldPage) => {
       englishPlayerInstance.pauseVideo();
     }
     stopEnglishPlayerTimer();
+  }
+
+  if ((oldPage === "article" || oldPage === "player") && newPage !== oldPage) {
+    articleWordAction.value.open = false;
   }
 
   if (
@@ -2760,12 +2868,38 @@ function computeTranscriptHash(lines) {
 const WORD_PATTERN = /[a-zA-Z]+(?:['’][a-zA-Z]+)*(?:-[a-zA-Z]+(?:['’][a-zA-Z]+)*)*/g;
 const VALID_SINGLE_CHAR_WORDS = new Set(["a", "i"]);
 const HYPHEN_PREFIX_PARTS = new Set(["co", "re", "pre", "pro", "anti", "non", "de"]);
-const CONTRACTION_EXACT_MAP = {
-  "can't": ["can", "not"],
-  "won't": ["will", "not"],
-  "shan't": ["shall", "not"],
-  "ain't": ["am", "not"],
+const CONTRACTION_BASE_GROUPS = {
+  "'re": ["you", "we", "they", "these", "those", "who", "what", "where", "there"],
+  "'ve": ["i", "you", "we", "they", "who", "what", "there"],
+  "'ll": ["i", "you", "he", "she", "it", "we", "they", "that", "there", "who", "what"],
+  "'m": ["i"],
+  "'s": ["he", "she", "it", "that", "there", "here", "what", "where", "when", "why", "how", "who"],
 };
+const CONTRACTION_BASE_EXPANSIONS = {
+  "'re": "are",
+  "'ve": "have",
+  "'ll": "will",
+  "'m": "am",
+  "'s": "is",
+};
+const CONTRACTION_EXACT_MAP = (() => {
+  const exactMap = {
+    "can't": ["can", "not"],
+    "won't": ["will", "not"],
+    "shan't": ["shall", "not"],
+    "ain't": ["am", "not"],
+    "let's": ["let", "us"],
+  };
+
+  Object.entries(CONTRACTION_BASE_GROUPS).forEach(([suffix, bases]) => {
+    const expansion = CONTRACTION_BASE_EXPANSIONS[suffix];
+    bases.forEach((base) => {
+      exactMap[`${base}${suffix}`] = [base, expansion];
+    });
+  });
+
+  return exactMap;
+})();
 
 function isValidWordToken(token) {
   return (
@@ -2876,10 +3010,10 @@ const LEMMA_IRREGULAR_MAP = {
   were: "be",
 };
 
-function addLemmaCandidate(candidates, candidate) {
+function addLemmaCandidate(candidates, candidate, kind = "derived") {
   if (!candidate || !isValidWordToken(candidate)) return;
-  if (!candidates.includes(candidate)) {
-    candidates.push(candidate);
+  if (!candidates.some((item) => item.candidate === candidate)) {
+    candidates.push({ candidate, kind });
   }
 }
 
@@ -2902,37 +3036,37 @@ function buildLemmaCandidates(word) {
   }
 
   if (w.endsWith("ies") && w.length > 4 && /[^aeiou]ies$/.test(w)) {
-    addLemmaCandidate(candidates, `${w.slice(0, -3)}y`);
+    addLemmaCandidate(candidates, `${w.slice(0, -3)}y`, "y_restore");
   }
   if (w.endsWith("ied") && w.length > 4) {
-    addLemmaCandidate(candidates, `${w.slice(0, -3)}y`);
+    addLemmaCandidate(candidates, `${w.slice(0, -3)}y`, "y_restore");
   }
   if (w.endsWith("ing") && w.length > 5) {
     const stem = w.slice(0, -3);
-    addLemmaCandidate(candidates, stem);
+    addLemmaCandidate(candidates, stem, "bare");
     if (!stem.endsWith("e")) {
-      addLemmaCandidate(candidates, `${stem}e`);
+      addLemmaCandidate(candidates, `${stem}e`, "silent_e");
     }
     if (hasDoubleConsonantEnding(stem)) {
-      addLemmaCandidate(candidates, stem.slice(0, -1));
+      addLemmaCandidate(candidates, stem.slice(0, -1), "undouble");
     }
   }
   if (w.endsWith("ed") && w.length > 4) {
     const stem = w.slice(0, -2);
-    addLemmaCandidate(candidates, stem);
+    addLemmaCandidate(candidates, stem, "bare");
     if (!stem.endsWith("e")) {
-      addLemmaCandidate(candidates, `${stem}e`);
+      addLemmaCandidate(candidates, `${stem}e`, "silent_e");
     }
     if (hasDoubleConsonantEnding(stem)) {
-      addLemmaCandidate(candidates, stem.slice(0, -1));
+      addLemmaCandidate(candidates, stem.slice(0, -1), "undouble");
     }
   }
   if (w.endsWith("es") && w.length > 4) {
     if (/(?:sses|xes|zes|ches|shes)$/.test(w)) {
-      addLemmaCandidate(candidates, w.slice(0, -2));
+      addLemmaCandidate(candidates, w.slice(0, -2), "es_plural");
     }
     // cases -> case 这类复数也可在校验通过时回到原型
-    addLemmaCandidate(candidates, w.slice(0, -1));
+    addLemmaCandidate(candidates, w.slice(0, -1), "s_plural");
   }
   if (
     w.endsWith("s") &&
@@ -2941,7 +3075,7 @@ function buildLemmaCandidates(word) {
     !LEMMA_PROTECTED_SUFFIXES.some((suffix) => w.endsWith(suffix)) &&
     /[^aeiouy]s$/.test(w)
   ) {
-    addLemmaCandidate(candidates, w.slice(0, -1));
+    addLemmaCandidate(candidates, w.slice(0, -1), "s_plural");
   }
 
   return candidates;
@@ -2961,6 +3095,101 @@ function isReliableLemmaCandidate(source, candidate, contextWordSet) {
   return false;
 }
 
+function getWordLabelPriority(word) {
+  const label = String(wordLabelsMap.value.get(word) || "").trim();
+  if (label === "3000") return 3;
+  if (label === "5000") return 2;
+  if (label === "10000") return 1;
+  return 0;
+}
+
+function isSilentERestorationCandidate(source, candidate) {
+  const normalizedSource = String(source || "").toLowerCase();
+  const normalizedCandidate = String(candidate || "").toLowerCase();
+  if (!normalizedSource || !normalizedCandidate.endsWith("e")) {
+    return false;
+  }
+
+  if (normalizedSource.endsWith("ing")) {
+    return `${normalizedSource.slice(0, -3)}e` === normalizedCandidate;
+  }
+
+  if (normalizedSource.endsWith("ed")) {
+    return `${normalizedSource.slice(0, -2)}e` === normalizedCandidate;
+  }
+
+  return false;
+}
+
+function scoreLemmaCandidate(source, candidateEntry, contextWordSet, allCandidates) {
+  const candidate = String(candidateEntry?.candidate || "").toLowerCase();
+  const kind = String(candidateEntry?.kind || "derived");
+  if (!isReliableLemmaCandidate(source, candidate, contextWordSet)) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  let score = 0;
+  const labelPriority = getWordLabelPriority(candidate);
+  const familiarity = getWordFamiliarity(candidate);
+  const hasWordLabel = wordLabelsMap.value.has(candidate);
+  const inContext = Boolean(contextWordSet?.has(candidate));
+
+  score += labelPriority * 100;
+  score += familiarity * 10;
+
+  if (inContext) {
+    score += 4;
+  }
+
+  if (kind === "bare") {
+    if (hasWordLabel || familiarity > 0) {
+      score += 6;
+    }
+  }
+
+  if (kind === "y_restore") {
+    score += 10;
+  }
+
+  if (kind === "undouble") {
+    score += 6;
+  }
+
+  if (kind === "silent_e") {
+    if (hasWordLabel || familiarity > 0) {
+      score += 12;
+    } else {
+      score -= 12;
+    }
+
+    const bareCandidate = allCandidates.find((item) => item.kind === "bare");
+    if (bareCandidate?.candidate && bareCandidate.candidate !== candidate) {
+      const bareWord = bareCandidate.candidate;
+      const barePriority = getWordLabelPriority(bareWord);
+      const bareFamiliarity = getWordFamiliarity(bareWord);
+      const bareHasWordLabel = wordLabelsMap.value.has(bareWord);
+
+      if (barePriority > labelPriority) {
+        score -= 20 + (barePriority - labelPriority) * 10;
+      } else if (
+        barePriority === labelPriority &&
+        bareHasWordLabel &&
+        !hasWordLabel &&
+        bareFamiliarity >= familiarity
+      ) {
+        score -= 20;
+      }
+    }
+
+    if (isSilentERestorationCandidate(source, candidate)) {
+      score += hasWordLabel || familiarity > 0 ? 4 : 0;
+    }
+  }
+
+  score += candidate.length * 0.01;
+  return score;
+}
+
 function simpleLemmatize(word, contextWordSet = null) {
   const w = word.toLowerCase();
   const irregular = LEMMA_IRREGULAR_MAP[w];
@@ -2969,13 +3198,18 @@ function simpleLemmatize(word, contextWordSet = null) {
   }
 
   const candidates = buildLemmaCandidates(w);
+  let bestCandidate = w;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
   for (const candidate of candidates) {
-    if (isReliableLemmaCandidate(w, candidate, contextWordSet)) {
-      return candidate;
+    const score = scoreLemmaCandidate(w, candidate, contextWordSet, candidates);
+    if (score > bestScore) {
+      bestScore = score;
+      bestCandidate = candidate.candidate;
     }
   }
 
-  return w;
+  return bestScore > Number.NEGATIVE_INFINITY ? bestCandidate : w;
 }
 
 function parseWordLabelsCsv(csvText) {
@@ -3488,6 +3722,60 @@ function buildTextMaterialSummary(lines) {
   };
 }
 
+function buildTextMaterialCoverageStats(lines) {
+  const emptyStats = {
+    totalTokens: 0,
+    top3000Tokens: 0,
+    top3000Percent: 0,
+    top5000Tokens: 0,
+    top5000Percent: 0,
+    masteredTokens: 0,
+    masteredPercent: 0,
+  };
+
+  if (!Array.isArray(lines) || !lines.length) {
+    return emptyStats;
+  }
+
+  const normalizedLineWords = buildNormalizedTranscriptLemmaLines(lines);
+  let totalTokens = 0;
+  let top3000Tokens = 0;
+  let top5000Tokens = 0;
+  let masteredTokens = 0;
+
+  normalizedLineWords.forEach((words) => {
+    words.forEach((word) => {
+      totalTokens += 1;
+
+      const label = getWordLabel(word);
+      if (label === "3000") {
+        top3000Tokens += 1;
+        top5000Tokens += 1;
+      } else if (label === "5000") {
+        top5000Tokens += 1;
+      }
+
+      if (getWordFamiliarity(word) === MAX_FAMILIARITY_LEVEL) {
+        masteredTokens += 1;
+      }
+    });
+  });
+
+  if (!totalTokens) {
+    return emptyStats;
+  }
+
+  return {
+    totalTokens,
+    top3000Tokens,
+    top3000Percent: roundMetric((top3000Tokens / totalTokens) * 100, 1),
+    top5000Tokens,
+    top5000Percent: roundMetric((top5000Tokens / totalTokens) * 100, 1),
+    masteredTokens,
+    masteredPercent: roundMetric((masteredTokens / totalTokens) * 100, 1),
+  };
+}
+
 function clampNumber(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -3790,12 +4078,6 @@ function analyzeSubtitleLines(lines) {
   });
 
   results.sort((a, b) => {
-    if (a.mastered !== b.mastered) {
-      return a.mastered ? 1 : -1;
-    }
-    if (a.count !== b.count) {
-      return b.count - a.count;
-    }
     return a.word.localeCompare(b.word);
   });
 
@@ -6191,15 +6473,35 @@ function getTokenWordFamiliarity(rawWord, contextWordSet) {
   return Math.max(directFamiliarity, lemmaFamiliarity);
 }
 
-function getSubtitleTokenHighlightClass(rawToken, contextWordSet) {
+function getPreferredTokenActionWord(rawWord, contextWordSet) {
+  const normalizedWord = String(rawWord || "").trim().toLowerCase();
+  if (!isValidWordToken(normalizedWord)) {
+    return "";
+  }
+
+  const lemma = simpleLemmatize(normalizedWord, contextWordSet);
+  if (
+    lemma &&
+    lemma !== normalizedWord &&
+    (wordLabelsMap.value.has(lemma) || getWordFamiliarity(lemma) > 0)
+  ) {
+    return lemma;
+  }
+
+  return normalizedWord;
+}
+
+function getTokenHighlightMeta(rawToken, contextWordSet) {
   const token = String(rawToken || "").toLowerCase();
-  if (!token) return "";
+  if (!token) return null;
 
   const parts = token
     .split("-")
     .map((part) => part.trim())
     .filter(Boolean);
   const hasHyphen = parts.length > 1;
+  let selectedActionWord = "";
+  let selectedFamiliarity = MAX_FAMILIARITY_LEVEL;
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
@@ -6216,24 +6518,35 @@ function getSubtitleTokenHighlightClass(rawToken, contextWordSet) {
       .map((item) => item.trim().toLowerCase())
       .filter((item) => isValidWordToken(item));
 
-    let minFamiliarity = MAX_FAMILIARITY_LEVEL;
     for (const currentWord of expandedWords) {
       const familiarity = getTokenWordFamiliarity(currentWord, contextWordSet);
-      if (familiarity === 0) {
-        return "player-word-highlight player-unknown-word";
+      if (familiarity < selectedFamiliarity) {
+        selectedFamiliarity = familiarity;
+        selectedActionWord = getPreferredTokenActionWord(currentWord, contextWordSet);
       }
-      minFamiliarity = Math.min(minFamiliarity, familiarity);
-    }
-
-    if (expandedWords.length && minFamiliarity < MAX_FAMILIARITY_LEVEL) {
-      return `player-word-highlight player-familiarity-word player-familiarity-word-${minFamiliarity}`;
     }
   }
 
-  return "";
+  if (!selectedActionWord || selectedFamiliarity === MAX_FAMILIARITY_LEVEL) {
+    return null;
+  }
+
+  if (selectedFamiliarity === 0) {
+    return {
+      className: "player-word-highlight player-unknown-word",
+      familiarity: 0,
+      actionWord: selectedActionWord,
+    };
+  }
+
+  return {
+    className: `player-word-highlight player-familiarity-word player-familiarity-word-${selectedFamiliarity}`,
+    familiarity: selectedFamiliarity,
+    actionWord: selectedActionWord,
+  };
 }
 
-function renderTextWithWordHighlights(text, contextWordSet) {
+function renderTextWithWordHighlights(text, contextWordSet, options = {}) {
   const sourceText = String(text || "");
   const escapedText = escapeHtml(sourceText);
   if (!sourceText) {
@@ -6252,9 +6565,13 @@ function renderTextWithWordHighlights(text, contextWordSet) {
     html += escapeHtml(sourceText.slice(lastIndex, tokenStart));
 
     const escapedToken = escapeHtml(token);
-    const highlightClassName = getSubtitleTokenHighlightClass(token, contextWordSet);
-    if (highlightClassName) {
-      html += `<span class="${highlightClassName}">${escapedToken}</span>`;
+    const highlightMeta = getTokenHighlightMeta(token, contextWordSet);
+    if (highlightMeta?.className) {
+      if (options.interactive && highlightMeta.actionWord) {
+        html += `<span class="${highlightMeta.className} interactive-word-actionable" data-action-word="${escapeHtml(highlightMeta.actionWord)}" data-action-token="${escapedToken}">${escapedToken}</span>`;
+      } else {
+        html += `<span class="${highlightMeta.className}">${escapedToken}</span>`;
+      }
     } else {
       html += escapedToken;
     }
@@ -6268,11 +6585,93 @@ function renderTextWithWordHighlights(text, contextWordSet) {
 }
 
 function renderSubtitleTextWithUnknownWords(text) {
-  return renderTextWithWordHighlights(text, playerTranscriptWordSet.value);
+  return renderTextWithWordHighlights(text, playerTranscriptWordSet.value, {
+    interactive: true,
+  });
 }
 
 function renderArticleTextWithWordHighlights(text) {
-  return renderTextWithWordHighlights(text, articleWordSet.value);
+  return renderTextWithWordHighlights(text, articleWordSet.value, {
+    interactive: true,
+  });
+}
+
+function openWordActionFromEvent(event) {
+  const target =
+    event?.target instanceof Element
+      ? event.target.closest("[data-action-word]")
+      : null;
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const targetWord = String(target.getAttribute("data-action-word") || "")
+    .trim()
+    .toLowerCase();
+  const displayToken = String(target.getAttribute("data-action-token") || "").trim();
+  if (!targetWord || !displayToken) {
+    return false;
+  }
+
+  articleWordAction.value = {
+    open: true,
+    displayToken,
+    targetWord,
+  };
+
+  return true;
+}
+
+function handleArticleWordActionTrigger(event) {
+  openWordActionFromEvent(event);
+}
+
+function handlePlayerWordActionTrigger(event) {
+  if (!openWordActionFromEvent(event)) {
+    return;
+  }
+
+  if (typeof event?.preventDefault === "function") {
+    event.preventDefault();
+  }
+  if (typeof event?.stopPropagation === "function") {
+    event.stopPropagation();
+  }
+}
+
+async function copyCurrentArticleActionWord() {
+  const text = String(articleWordAction.value.displayToken || "").trim();
+  if (!text) {
+    return;
+  }
+
+  try {
+    const copied = await writeClipboardText(text);
+    if (!copied) {
+      throw new Error("copy_failed");
+    }
+    message.success(`Copied "${text}".`);
+  } catch {
+    message.error("Copy failed. Check browser clipboard permissions.");
+  }
+}
+
+async function handleCurrentArticleActionFamiliarityChange(nextFamiliarity) {
+  const targetWord = String(articleWordAction.value.targetWord || "").trim().toLowerCase();
+  if (!targetWord) {
+    return;
+  }
+
+  await handleWordFamiliarityChange(targetWord, nextFamiliarity);
+}
+
+async function clearCurrentArticleActionWordFamiliarity() {
+  const targetWord = String(articleWordAction.value.targetWord || "").trim().toLowerCase();
+  if (!targetWord) {
+    return;
+  }
+
+  await handleWordFamiliarityChange(targetWord, 0);
 }
 
 function formatSubtitleTime(seconds) {
@@ -6937,31 +7336,50 @@ body {
   flex-wrap: wrap;
 }
 
-.article-highlight-legend {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.article-highlight-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 0 12px;
-  border-radius: 999px;
-  font-size: 12px;
+.article-header-btn {
+  min-width: 108px;
+  height: 42px !important;
+  padding: 0 18px !important;
+  border-radius: 12px !important;
+  font-size: 14px;
   font-weight: 700;
 }
 
-.article-highlight-pill-unknown {
-  background: #d8ebff;
-  color: #163250;
+.article-content-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 16px;
 }
 
-.article-highlight-pill-familiar {
-  background: #fff2cc;
-  color: #5d4300;
+.article-sidebar {
+  min-height: 0;
+  display: flex;
+}
+
+.article-sidebar-card {
+  flex: 1;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 18px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  border: 1px solid #dbe9ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.article-sidebar-header {
+  margin-bottom: 12px;
+}
+
+.article-sidebar-header h3 {
+  margin: 0;
+  color: #163250;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .article-reader-card {
@@ -6971,10 +7389,99 @@ body {
   flex-direction: column;
 }
 
+.article-coverage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.article-coverage-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e6f0ff;
+}
+
+.article-coverage-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.article-coverage-title {
+  color: #163250;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.article-coverage-value {
+  color: #1677ff;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 700;
+}
+
 .article-reader-content {
   flex: 1;
   overflow-y: auto;
   padding-right: 6px;
+}
+
+.interactive-word-actionable {
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.interactive-word-actionable:hover {
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.18);
+}
+
+.article-word-action-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.article-word-action-token {
+  color: #163250;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.article-word-action-target-hint {
+  margin-top: -10px;
+  color: #607286;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.article-word-action-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.article-word-action-rating {
+  padding: 14px;
+  border-radius: 12px;
+  background: #f7fbff;
+  border: 1px solid #dbe9ff;
+}
+
+.article-word-action-rating-label {
+  margin-bottom: 8px;
+  color: #163250;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.article-word-action-rating-text {
+  margin-top: 8px;
+  color: #526275;
+  font-size: 13px;
 }
 
 .article-paragraph-list {
@@ -7721,6 +8228,10 @@ body {
     min-height: 560px;
   }
 
+  .article-content-layout {
+    grid-template-columns: 1fr;
+  }
+
   .table-section {
     height: 500px;
   }
@@ -7817,6 +8328,17 @@ body {
 
   .article-header-actions {
     justify-content: space-between;
+  }
+
+  .article-sidebar-card,
+  .article-header-card,
+  .article-reader-card {
+    padding: 15px;
+  }
+
+  .article-coverage-top {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .player-progress-row {
