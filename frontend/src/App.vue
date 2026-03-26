@@ -779,12 +779,48 @@
 
           <div v-if="currentPage === 'article'" class="article-page">
             <div class="article-header-card">
-              <div class="section-header section-header-row">
-                <div>
+              <div class="article-header-shell">
+                <div class="article-header-title-group">
                   <h2>{{ articleTitle || "Untitled Article" }}</h2>
-                  <p>{{ articleSummaryLabel }}</p>
+                </div>
+                <div class="article-header-stats">
+                  <div
+                    v-for="card in articleHeaderStatCards"
+                    :key="card.key"
+                    class="article-header-stat"
+                  >
+                    <div class="article-header-stat-label">{{ card.title }}</div>
+                    <div class="article-header-stat-value">{{ card.value }}</div>
+                  </div>
                 </div>
                 <div class="article-header-actions">
+                  <div
+                    v-if="articleParagraphs.length"
+                    class="article-header-layout-picker"
+                  >
+                    <a-segmented
+                      size="small"
+                      :value="articleReaderLayoutMode"
+                      :options="articleReaderLayoutOptions"
+                      @change="handleArticleReaderLayoutModeChange"
+                    />
+                  </div>
+                  <div
+                    v-if="articleParagraphs.length"
+                    class="article-header-page-picker"
+                  >
+                    <span class="article-header-page-label">Page</span>
+                    <a-select
+                      class="article-header-page-select"
+                      :value="articleReaderCurrentPage"
+                      :options="articleReaderPageOptions"
+                      :disabled="articleReaderTotalPages <= 1"
+                      @change="handleArticleReaderPageSelectChange"
+                    />
+                    <span class="article-header-page-total">
+                      / {{ articleReaderTotalPages }}
+                    </span>
+                  </div>
                   <a-dropdown :trigger="['click']" placement="bottomRight">
                     <a-button
                       class="player-control-trigger-btn article-header-btn article-font-scale-trigger-btn"
@@ -807,58 +843,87 @@
                       </a-menu>
                     </template>
                   </a-dropdown>
-                  <a-button
-                    class="article-header-btn"
-                    type="primary"
-                    :disabled="!canAnalyzeCurrentArticle"
-                    @click="analyzeCurrentArticleVocabulary"
-                  >
-                    Vocabulary
-                  </a-button>
                 </div>
               </div>
             </div>
 
             <div class="article-content-layout">
-              <div class="article-sidebar">
-                <div class="article-sidebar-card">
-                  <div class="article-sidebar-header">
-                    <h3>Coverage Snapshot</h3>
-                  </div>
-
-                  <div class="article-coverage-list">
-                    <div
-                      v-for="card in articleCoverageCards"
-                      :key="card.key"
-                      class="article-coverage-card"
-                    >
-                      <div class="article-coverage-top">
-                        <div class="article-coverage-title">{{ card.title }}</div>
-                        <div class="article-coverage-value">{{ card.percent }}%</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <div class="article-reader-card" :style="playerSubtitleStyleVars">
                 <div v-if="!articleParagraphs.length" class="player-subtitle-empty">
                   No article loaded
                 </div>
-                <div
-                  v-else
-                  class="article-reader-content"
-                  @click="handleArticleWordActionTrigger"
-                >
-                  <div class="article-paragraph-list">
-                    <p
-                      v-for="(paragraph, idx) in articleParagraphs"
-                      :key="`article-paragraph-${idx}`"
-                      class="article-paragraph"
-                      v-html="renderArticleTextWithWordHighlights(paragraph)"
-                    ></p>
+                <template v-else>
+                  <div class="article-reader-shell">
+                    <button
+                      type="button"
+                      class="article-reader-edge-nav article-reader-edge-nav-prev"
+                      :disabled="articleReaderCurrentPage <= 1"
+                      aria-label="Previous page"
+                      @click="goToPreviousArticlePage"
+                    >
+                      <LeftOutlined />
+                    </button>
+                    <div
+                      ref="articleReaderContentRef"
+                      class="article-reader-content"
+                      @click="handleArticleWordActionTrigger"
+                    >
+                      <div
+                        class="article-reader-page"
+                        :class="{ 'is-spread': articleReaderIsSpreadMode }"
+                      >
+                        <div class="article-reader-page-column">
+                          <div class="article-paragraph-list">
+                            <p
+                              v-for="item in articleReaderCurrentPageColumns.left"
+                              :key="`article-paragraph-left-${item.index}`"
+                              :class="[
+                                'article-paragraph',
+                                { 'article-paragraph-continuation': !item.isParagraphStart },
+                              ]"
+                              v-html="renderArticleTextWithWordHighlights(item.text)"
+                            ></p>
+                          </div>
+                        </div>
+                        <div
+                          v-if="articleReaderIsSpreadMode"
+                          class="article-reader-page-divider"
+                        ></div>
+                        <div
+                          v-if="articleReaderIsSpreadMode"
+                          class="article-reader-page-column"
+                        >
+                          <div class="article-paragraph-list">
+                            <p
+                              v-for="item in articleReaderCurrentPageColumns.right"
+                              :key="`article-paragraph-right-${item.index}`"
+                              :class="[
+                                'article-paragraph',
+                                { 'article-paragraph-continuation': !item.isParagraphStart },
+                              ]"
+                              v-html="renderArticleTextWithWordHighlights(item.text)"
+                            ></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="article-reader-edge-nav article-reader-edge-nav-next"
+                      :disabled="articleReaderCurrentPage >= articleReaderTotalPages"
+                      aria-label="Next page"
+                      @click="goToNextArticlePage"
+                    >
+                      <RightOutlined />
+                    </button>
                   </div>
-                </div>
+                  <div
+                    ref="articleReaderMeasureRef"
+                    class="article-reader-measure"
+                    :style="articleReaderMeasureStyle"
+                    aria-hidden="true"
+                  ></div>
+                </template>
               </div>
             </div>
           </div>
@@ -1247,14 +1312,32 @@
       width="440px"
     >
       <div class="article-word-action-panel">
-        <div class="article-word-action-token">
-          {{ articleWordAction.displayToken || "-" }}
-        </div>
-        <div
-          v-if="articleWordActionTargetHint"
-          class="article-word-action-target-hint"
-        >
-          {{ articleWordActionTargetHint }}
+        <div class="article-word-action-header">
+          <div class="article-word-action-token">
+            {{ articleWordAction.displayToken || "-" }}
+          </div>
+          <div
+            v-if="articleWordActionTags.length"
+            class="article-word-action-inline-tags"
+          >
+            <a-tag
+              v-for="tag in articleWordActionTags"
+              :key="`article-word-action-tag-${tag}`"
+              :color="
+                tag === WORD_TAG_TOP_3000
+                  ? 'green'
+                  : tag === WORD_TAG_TOP_5000
+                  ? 'blue'
+                  : tag === WORD_TAG_TOP_10000
+                  ? 'orange'
+                  : tag === WORD_TAG_10000_PLUS
+                  ? 'volcano'
+                  : 'default'
+              "
+            >
+              {{ tag }}
+            </a-tag>
+          </div>
         </div>
 
         <div class="article-word-action-toolbar">
@@ -1278,9 +1361,6 @@
             allow-clear
             @change="handleCurrentArticleActionFamiliarityChange"
           />
-          <div class="article-word-action-rating-text">
-            {{ formatFamiliarityLabel(articleWordActionCurrentFamiliarity) }}
-          </div>
         </div>
       </div>
     </a-modal>
@@ -1296,6 +1376,8 @@ import {
   StepBackwardOutlined,
   StepForwardOutlined,
   FastForwardOutlined,
+  LeftOutlined,
+  RightOutlined,
   CaretRightOutlined,
   PauseOutlined,
 } from "@ant-design/icons-vue";
@@ -1310,6 +1392,8 @@ const LEGACY_MASTERED_WORDS_STORAGE_KEY = "word_power_mastered_words_v1";
 const WORD_LABELS_STORAGE_KEY = "word_power_word_labels_map_v1";
 const WORD_LABELS_VERSION_STORAGE_KEY = "word_power_word_labels_version_v1";
 const LEARNING_DATA_VERSION_STORAGE_KEY = "word_power_learning_data_version_v1";
+const ARTICLE_READER_PROGRESS_STORAGE_KEY = "word_power_article_reader_progress_v1";
+const ARTICLE_READER_SESSION_STORAGE_KEY = "word_power_article_reader_session_v1";
 const LOCAL_VIDEO_DB_NAME = "word_power_local_media_v1";
 const LOCAL_VIDEO_DB_VERSION = 1;
 const LOCAL_VIDEO_STORE_NAME = "videos";
@@ -1342,6 +1426,10 @@ const MAX_FAMILIARITY_LEVEL = 5;
 const REVIEW_FAMILIARITY_LEVELS = [1, 2, 3, 4];
 const REVIEW_FAMILIARITY_ALL_KEY = "all";
 const REVIEW_FAMILIARITY_FILTERS = [REVIEW_FAMILIARITY_ALL_KEY, ...REVIEW_FAMILIARITY_LEVELS];
+const ARTICLE_READER_LAYOUT_SINGLE = "single";
+const ARTICLE_READER_LAYOUT_SPREAD = "spread";
+const ARTICLE_READER_CHUNK_MAX_WORDS = 12;
+const ARTICLE_READER_CHUNK_MAX_CHARS = 96;
 const FAMILIARITY_DESCRIPTIONS = {
   0: "Not rated yet",
   1: "Review tomorrow",
@@ -1874,6 +1962,23 @@ const articleMaterialUrl = ref("");
 const articleMaterialId = ref("");
 const articleTitle = ref("");
 const articleText = ref("");
+const articleReaderContentRef = ref(null);
+const articleReaderMeasureRef = ref(null);
+const articleReaderCurrentPage = ref(1);
+const articleReaderLayoutMode = ref(ARTICLE_READER_LAYOUT_SINGLE);
+const articleReaderProgress = ref({});
+const articleReaderMeasureWidth = ref(0);
+const articleReaderPageDefinitions = ref([
+  {
+    startIndex: 0,
+    middleIndex: 0,
+    endIndex: 0,
+  },
+]);
+const articleReaderPageStartIndexes = ref([0]);
+const articleReaderPendingParagraphIndex = ref(null);
+let articleReaderResizeObserver = null;
+let articleReaderPaginationRunId = 0;
 
 const articleParagraphs = computed(() => splitArticleIntoParagraphs(articleText.value));
 const articleAnalysisLines = computed(() =>
@@ -1888,6 +1993,9 @@ const articleWordSet = computed(() => {
 });
 const articleSummary = computed(() =>
   buildTextMaterialSummary(articleAnalysisLines.value)
+);
+const articleReaderUnits = computed(() =>
+  buildArticleReaderUnits(articleParagraphs.value)
 );
 const articleCoverageStats = computed(() =>
   buildTextMaterialCoverageStats(articleAnalysisLines.value)
@@ -1920,21 +2028,637 @@ const articleWordAction = ref({
 const articleWordActionCurrentFamiliarity = computed(() =>
   getWordFamiliarity(articleWordAction.value.targetWord)
 );
-const articleWordActionTargetHint = computed(() => {
-  const displayToken = String(articleWordAction.value.displayToken || "").trim().toLowerCase();
+const articleWordActionTags = computed(() => {
   const targetWord = String(articleWordAction.value.targetWord || "").trim().toLowerCase();
-  if (!displayToken || !targetWord || displayToken === targetWord) {
-    return "";
+  if (!targetWord) {
+    return [];
   }
-  return `Rating applies to ${targetWord}`;
+  return getWordTags(targetWord);
 });
-const articleSummaryLabel = computed(() => {
-  if (!articleSummary.value) {
-    return "Paste an article to start reading.";
+const articleHeaderStatCards = computed(() => {
+  const summary = articleSummary.value;
+  const stats = articleCoverageStats.value;
+  return [
+    {
+      key: "words",
+      title: "Words",
+      value: String(summary?.totalWords || 0),
+    },
+    {
+      key: "unique",
+      title: "Unique",
+      value: String(summary?.uniqueWords || 0),
+    },
+    {
+      key: "top3000",
+      title: "Top 3000",
+      value: `${stats.top3000Percent}%`,
+    },
+    {
+      key: "top5000",
+      title: "Top 5000",
+      value: `${stats.top5000Percent}%`,
+    },
+    {
+      key: "mastered",
+      title: "Mastered",
+      value: `${stats.masteredPercent}%`,
+    },
+  ];
+});
+const articleReaderLayoutOptions = [
+  {
+    value: ARTICLE_READER_LAYOUT_SINGLE,
+    label: "1P",
+  },
+  {
+    value: ARTICLE_READER_LAYOUT_SPREAD,
+    label: "2P",
+  },
+];
+const articleReaderMeasureStyle = computed(() => {
+  const width = Number(articleReaderMeasureWidth.value || 0);
+  return width > 0 ? { width: `${width}px` } : {};
+});
+const articleReaderIsSpreadMode = computed(
+  () => articleReaderLayoutMode.value === ARTICLE_READER_LAYOUT_SPREAD
+);
+const articleReaderMaterialKey = computed(() => {
+  const materialId = String(articleMaterialId.value || "").trim();
+  if (materialId) {
+    return `id:${materialId}`;
   }
-  return articleSummary.value.readingLabel;
+
+  const materialUrl = String(articleMaterialUrl.value || "").trim();
+  if (materialUrl) {
+    return `url:${materialUrl}`;
+  }
+
+  if (articleAnalysisLines.value.length) {
+    return `hash:${computeTranscriptHash(articleAnalysisLines.value)}`;
+  }
+
+  return "";
+});
+const articleReaderTotalPages = computed(() => {
+  return Math.max(1, articleReaderPageDefinitions.value.length || 0);
+});
+const articleReaderPageOptions = computed(() =>
+  Array.from({ length: articleReaderTotalPages.value }, (_, index) => ({
+    value: index + 1,
+    label: String(index + 1),
+  }))
+);
+const articleReaderCurrentPageDefinition = computed(() => {
+  const pageIndex = clampArticleReaderPage(articleReaderCurrentPage.value) - 1;
+  return (
+    articleReaderPageDefinitions.value[pageIndex] || {
+      startIndex: 0,
+      middleIndex: articleReaderUnits.value.length,
+      endIndex: articleReaderUnits.value.length,
+    }
+  );
+});
+const articleReaderPageStartIndex = computed(() => {
+  return articleReaderCurrentPageDefinition.value.startIndex ?? 0;
 });
 const canAnalyzeCurrentArticle = computed(() => articleAnalysisLines.value.length > 0);
+
+function normalizeArticleReaderLayoutMode(value) {
+  return value === ARTICLE_READER_LAYOUT_SPREAD
+    ? ARTICLE_READER_LAYOUT_SPREAD
+    : ARTICLE_READER_LAYOUT_SINGLE;
+}
+
+function mergeArticleReaderUnitsForDisplay(units, startIndex = 0) {
+  const blocks = [];
+
+  (Array.isArray(units) ? units : []).forEach((item, offset) => {
+    const unitIndex = startIndex + offset;
+    const previous = blocks[blocks.length - 1];
+    if (previous && previous.paragraphIndex === item.paragraphIndex) {
+      previous.text = `${previous.text} ${item.text}`.trim();
+      previous.endIndex = unitIndex;
+      return;
+    }
+
+    blocks.push({
+      key: item.key,
+      index: unitIndex,
+      endIndex: unitIndex,
+      text: item.text,
+      paragraphIndex: item.paragraphIndex,
+      isParagraphStart: item.isParagraphStart,
+    });
+  });
+
+  return blocks;
+}
+
+const articleReaderCurrentPageColumns = computed(() => {
+  const definition = articleReaderCurrentPageDefinition.value;
+  const leftUnits = articleReaderUnits.value.slice(
+    definition.startIndex,
+    definition.middleIndex
+  );
+  const rightUnits = articleReaderIsSpreadMode.value
+    ? articleReaderUnits.value.slice(definition.middleIndex, definition.endIndex)
+    : [];
+
+  return {
+    left: mergeArticleReaderUnitsForDisplay(leftUnits, definition.startIndex),
+    right: mergeArticleReaderUnitsForDisplay(rightUnits, definition.middleIndex),
+  };
+});
+
+function clampArticleReaderPage(page) {
+  const parsedPage = Math.round(Number(page) || 1);
+  return Math.min(articleReaderTotalPages.value, Math.max(1, parsedPage));
+}
+
+function clampArticleReaderParagraphIndex(index) {
+  const parsedIndex = Math.floor(Number(index) || 0);
+  if (!articleReaderUnits.value.length) {
+    return 0;
+  }
+  return Math.min(articleReaderUnits.value.length - 1, Math.max(0, parsedIndex));
+}
+
+function findArticleReaderPageByBlockIndex(index) {
+  const targetIndex = clampArticleReaderParagraphIndex(index);
+  const starts = articleReaderPageStartIndexes.value;
+  let left = 0;
+  let right = starts.length - 1;
+  let found = 0;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if ((starts[mid] ?? 0) <= targetIndex) {
+      found = mid;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return found + 1;
+}
+
+function setArticleReaderPage(nextPage) {
+  const page = clampArticleReaderPage(nextPage);
+  articleReaderCurrentPage.value = page;
+}
+
+function setArticleReaderPageByBlockIndex(index) {
+  setArticleReaderPage(findArticleReaderPageByBlockIndex(index));
+}
+
+function resetArticleReaderPagination() {
+  articleReaderPageDefinitions.value = [
+    {
+      startIndex: 0,
+      middleIndex: 0,
+      endIndex: 0,
+    },
+  ];
+  articleReaderPageStartIndexes.value = [0];
+  setArticleReaderPage(1);
+}
+
+function goToPreviousArticlePage() {
+  setArticleReaderPage(articleReaderCurrentPage.value - 1);
+}
+
+function goToNextArticlePage() {
+  setArticleReaderPage(articleReaderCurrentPage.value + 1);
+}
+
+function handleArticleReaderPageSelectChange(value) {
+  setArticleReaderPage(value);
+}
+
+function handleArticleReaderLayoutModeChange(value) {
+  articleReaderLayoutMode.value = normalizeArticleReaderLayoutMode(value);
+}
+
+function scrollArticleReaderToTop() {
+  const container = articleReaderContentRef.value;
+  if (!(container instanceof HTMLElement)) {
+    return;
+  }
+
+  container.scrollTo({
+    top: 0,
+    behavior: "auto",
+  });
+}
+
+function destroyArticleReaderResizeObserver() {
+  if (articleReaderResizeObserver) {
+    articleReaderResizeObserver.disconnect();
+    articleReaderResizeObserver = null;
+  }
+}
+
+function initArticleReaderResizeObserver() {
+  destroyArticleReaderResizeObserver();
+
+  if (typeof ResizeObserver === "undefined") {
+    return;
+  }
+
+  const content = articleReaderContentRef.value;
+  if (!(content instanceof HTMLElement)) {
+    return;
+  }
+
+  articleReaderResizeObserver = new ResizeObserver(() => {
+    void recalculateArticleReaderPagination({
+      preferredBlockIndex: articleReaderPageStartIndex.value,
+    });
+  });
+  articleReaderResizeObserver.observe(content);
+}
+
+function createArticleReaderMeasureParagraph(unit) {
+  const node = document.createElement("p");
+  node.className = "article-paragraph article-paragraph-measure";
+  if (!unit.isParagraphStart) {
+    node.classList.add("article-paragraph-continuation");
+  }
+  node.innerHTML = renderArticleTextWithWordHighlights(unit.text);
+  return node;
+}
+
+function createArticleReaderMeasureLists(measureContainer, isSpread) {
+  const page = document.createElement("div");
+  page.className = `article-reader-page article-reader-page-measure${
+    isSpread ? " is-spread" : ""
+  }`;
+
+  const leftColumn = document.createElement("div");
+  leftColumn.className = "article-reader-page-column";
+  const leftList = document.createElement("div");
+  leftList.className = "article-paragraph-list article-paragraph-list-measure";
+  leftColumn.appendChild(leftList);
+  page.appendChild(leftColumn);
+
+  let rightList = null;
+  if (isSpread) {
+    const divider = document.createElement("div");
+    divider.className = "article-reader-page-divider article-reader-page-divider-measure";
+    page.appendChild(divider);
+
+    const rightColumn = document.createElement("div");
+    rightColumn.className = "article-reader-page-column";
+    rightList = document.createElement("div");
+    rightList.className = "article-paragraph-list article-paragraph-list-measure";
+    rightColumn.appendChild(rightList);
+    page.appendChild(rightColumn);
+  }
+
+  measureContainer.replaceChildren(page);
+  return { leftList, rightList };
+}
+
+function appendUnitToArticleReaderMeasureList(list, unit, currentParagraphMeta) {
+  const previousParagraphMeta = currentParagraphMeta;
+  const renderedHtml = renderArticleTextWithWordHighlights(unit.text);
+
+  if (currentParagraphMeta?.paragraphIndex === unit.paragraphIndex) {
+    const paragraphNode = currentParagraphMeta.node;
+    const previousHtml = paragraphNode.innerHTML;
+    paragraphNode.innerHTML = previousHtml
+      ? `${previousHtml} ${renderedHtml}`
+      : renderedHtml;
+    return {
+      merged: true,
+      paragraphNode,
+      previousHtml,
+      previousParagraphMeta,
+      nextParagraphMeta: {
+        paragraphIndex: unit.paragraphIndex,
+        node: paragraphNode,
+      },
+    };
+  }
+
+  const paragraphNode = createArticleReaderMeasureParagraph(unit);
+  list.appendChild(paragraphNode);
+  return {
+    merged: false,
+    paragraphNode,
+    previousHtml: "",
+    previousParagraphMeta,
+    nextParagraphMeta: {
+      paragraphIndex: unit.paragraphIndex,
+      node: paragraphNode,
+    },
+  };
+}
+
+function revertArticleReaderMeasureAppend(list, appendResult) {
+  if (appendResult.merged) {
+    appendResult.paragraphNode.innerHTML = appendResult.previousHtml;
+    return appendResult.previousParagraphMeta;
+  }
+
+  if (appendResult.paragraphNode.parentNode === list) {
+    list.removeChild(appendResult.paragraphNode);
+  }
+  return appendResult.previousParagraphMeta;
+}
+
+async function recalculateArticleReaderPagination(options = {}) {
+  const runId = ++articleReaderPaginationRunId;
+  await nextTick();
+
+  const units = articleReaderUnits.value;
+  if (!units.length) {
+    resetArticleReaderPagination();
+    return;
+  }
+
+  const content = articleReaderContentRef.value;
+  const measure = articleReaderMeasureRef.value;
+  if (!(content instanceof HTMLElement) || !(measure instanceof HTMLElement)) {
+    return;
+  }
+
+  const contentHeight = Math.floor(content.clientHeight);
+  const contentWidth = Math.floor(content.clientWidth);
+  if (contentHeight <= 0 || contentWidth <= 0) {
+    return;
+  }
+
+  articleReaderMeasureWidth.value = contentWidth;
+  await nextTick();
+
+  if (runId !== articleReaderPaginationRunId) {
+    return;
+  }
+
+  const isSpread = articleReaderIsSpreadMode.value;
+  const { leftList, rightList } = createArticleReaderMeasureLists(measure, isSpread);
+  const pageDefinitions = [];
+  const pageStarts = [0];
+  let currentPageStartIndex = 0;
+  let currentColumnStartIndex = 0;
+  let currentColumn = "left";
+  let rightColumnStartIndex = null;
+  let leftParagraphMeta = null;
+  let rightParagraphMeta = null;
+
+  units.forEach((unit, index) => {
+    const activeList = currentColumn === "left" ? leftList : rightList;
+    const activeMeta =
+      currentColumn === "left" ? leftParagraphMeta : rightParagraphMeta;
+    const appendResult = appendUnitToArticleReaderMeasureList(
+      activeList,
+      unit,
+      activeMeta
+    );
+
+    if (currentColumn === "left") {
+      leftParagraphMeta = appendResult.nextParagraphMeta;
+    } else {
+      rightParagraphMeta = appendResult.nextParagraphMeta;
+    }
+
+    const measuredHeight = Math.ceil(activeList.getBoundingClientRect().height);
+    if (measuredHeight <= contentHeight || index <= currentColumnStartIndex) {
+      return;
+    }
+
+    if (currentColumn === "left") {
+      leftParagraphMeta = revertArticleReaderMeasureAppend(activeList, appendResult);
+    } else {
+      rightParagraphMeta = revertArticleReaderMeasureAppend(activeList, appendResult);
+    }
+
+    if (isSpread && currentColumn === "left" && rightList) {
+      currentColumn = "right";
+      currentColumnStartIndex = index;
+      rightColumnStartIndex = index;
+      const rightRestart = appendUnitToArticleReaderMeasureList(rightList, unit, null);
+      rightParagraphMeta = rightRestart.nextParagraphMeta;
+      return;
+    }
+
+    pageDefinitions.push({
+      startIndex: currentPageStartIndex,
+      middleIndex: isSpread ? rightColumnStartIndex ?? index : index,
+      endIndex: index,
+    });
+    pageStarts.push(index);
+    currentPageStartIndex = index;
+    currentColumnStartIndex = index;
+    currentColumn = "left";
+    rightColumnStartIndex = null;
+    leftParagraphMeta = null;
+    rightParagraphMeta = null;
+    leftList.replaceChildren();
+    if (rightList) {
+      rightList.replaceChildren();
+    }
+
+    const leftRestart = appendUnitToArticleReaderMeasureList(leftList, unit, null);
+    leftParagraphMeta = leftRestart.nextParagraphMeta;
+  });
+
+  const finalEndIndex = units.length;
+  pageDefinitions.push({
+    startIndex: currentPageStartIndex,
+    middleIndex: isSpread ? rightColumnStartIndex ?? finalEndIndex : finalEndIndex,
+    endIndex: finalEndIndex,
+  });
+
+  articleReaderPageDefinitions.value = pageDefinitions;
+  articleReaderPageStartIndexes.value = pageStarts;
+
+  const preferredBlockIndex =
+    options.preferredBlockIndex ?? articleReaderPendingParagraphIndex.value;
+  const nextBlockIndex = Number.isFinite(preferredBlockIndex)
+    ? clampArticleReaderParagraphIndex(preferredBlockIndex)
+    : clampArticleReaderParagraphIndex(articleReaderPageStartIndex.value);
+
+  articleReaderPendingParagraphIndex.value = null;
+  setArticleReaderPageByBlockIndex(nextBlockIndex);
+  persistCurrentArticleReaderPage();
+  saveCurrentArticleReaderSession();
+
+  await nextTick();
+  if (runId !== articleReaderPaginationRunId) {
+    return;
+  }
+  scrollArticleReaderToTop();
+}
+
+function loadArticleReaderProgress() {
+  try {
+    const raw = localStorage.getItem(ARTICLE_READER_PROGRESS_STORAGE_KEY);
+    if (!raw) {
+      articleReaderProgress.value = {};
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    articleReaderProgress.value =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (err) {
+    console.warn("Failed to load article reader progress:", err);
+    articleReaderProgress.value = {};
+  }
+}
+
+function saveArticleReaderProgress() {
+  try {
+    localStorage.setItem(
+      ARTICLE_READER_PROGRESS_STORAGE_KEY,
+      JSON.stringify(articleReaderProgress.value)
+    );
+  } catch (err) {
+    console.warn("Failed to save article reader progress:", err);
+  }
+}
+
+function persistCurrentArticleReaderPage() {
+  const materialKey = articleReaderMaterialKey.value;
+  if (!materialKey || !articleReaderUnits.value.length) {
+    return;
+  }
+
+  const nextProgress = {
+    ...articleReaderProgress.value,
+    [materialKey]: {
+      page: clampArticleReaderPage(articleReaderCurrentPage.value),
+      blockIndex: articleReaderPageStartIndex.value,
+      updatedAt: Date.now(),
+    },
+  };
+
+  articleReaderProgress.value = Object.fromEntries(
+    Object.entries(nextProgress)
+      .sort((a, b) => Number(b[1]?.updatedAt || 0) - Number(a[1]?.updatedAt || 0))
+      .slice(0, 50)
+  );
+  saveArticleReaderProgress();
+}
+
+function getSavedArticleReaderBlockIndex(materialKey) {
+  if (!materialKey) {
+    return 0;
+  }
+
+  const savedProgress = articleReaderProgress.value?.[materialKey];
+  if (!savedProgress || typeof savedProgress !== "object") {
+    return 0;
+  }
+
+  if (Number.isFinite(savedProgress.blockIndex)) {
+    return clampArticleReaderParagraphIndex(savedProgress.blockIndex);
+  }
+
+  if (Number.isFinite(savedProgress.paragraphIndex)) {
+    return clampArticleReaderParagraphIndex(savedProgress.paragraphIndex);
+  }
+
+  if (Number.isFinite(savedProgress.page)) {
+    const fallbackPage = Math.max(1, Math.floor(savedProgress.page));
+    const fallbackStartIndex =
+      articleReaderPageStartIndexes.value[fallbackPage - 1] ?? articleReaderPageStartIndex.value;
+    return clampArticleReaderParagraphIndex(fallbackStartIndex);
+  }
+
+  return 0;
+}
+
+function buildCurrentArticleReaderSession() {
+  const normalizedText = normalizeArticleText(articleText.value);
+  if (!normalizedText) {
+    return null;
+  }
+
+  return {
+    currentPage: currentPage.value,
+    readerPage: clampArticleReaderPage(articleReaderCurrentPage.value),
+    readerBlockIndex: articleReaderPageStartIndex.value,
+    readerLayoutMode: articleReaderLayoutMode.value,
+    materialUrl: String(articleMaterialUrl.value || "").trim(),
+    materialId: String(articleMaterialId.value || "").trim(),
+    title: String(articleTitle.value || "").trim(),
+    articleText: normalizedText,
+    savedAt: Date.now(),
+  };
+}
+
+function saveCurrentArticleReaderSession() {
+  const session = buildCurrentArticleReaderSession();
+  if (!session) {
+    try {
+      localStorage.removeItem(ARTICLE_READER_SESSION_STORAGE_KEY);
+    } catch (err) {
+      console.warn("Failed to clear article reader session:", err);
+    }
+    return;
+  }
+
+  try {
+    localStorage.setItem(
+      ARTICLE_READER_SESSION_STORAGE_KEY,
+      JSON.stringify(session)
+    );
+  } catch (err) {
+    console.warn("Failed to save article reader session:", err);
+  }
+}
+
+function restoreArticleReaderSession() {
+  try {
+    const raw = localStorage.getItem(ARTICLE_READER_SESSION_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.currentPage !== "article") {
+      return;
+    }
+
+    const restoredText = normalizeArticleText(parsed.articleText || "");
+    if (!restoredText) {
+      return;
+    }
+
+    articleMaterialUrl.value = String(parsed.materialUrl || "").trim();
+    articleMaterialId.value = String(parsed.materialId || "").trim();
+    articleTitle.value =
+      String(parsed.title || "").trim() ||
+      deriveArticleMaterialTitle({ title: "", articleText: restoredText });
+    articleText.value = restoredText;
+    articleReaderLayoutMode.value = normalizeArticleReaderLayoutMode(parsed.readerLayoutMode);
+    currentPage.value = "article";
+    showStatsPage.value = false;
+    articleReaderPendingParagraphIndex.value = Number.isFinite(parsed.readerBlockIndex)
+      ? Math.max(0, Math.floor(parsed.readerBlockIndex))
+      : Number.isFinite(parsed.readerParagraphIndex)
+      ? Math.max(0, Math.floor(parsed.readerParagraphIndex))
+      : null;
+
+    if (articleMaterialUrl.value) {
+      upsertPlayerHistory({
+        url: articleMaterialUrl.value,
+        videoId: articleMaterialId.value,
+        title: articleTitle.value,
+        materialType: "article",
+        articleText: restoredText,
+        hasVideo: false,
+      });
+    }
+  } catch (err) {
+    console.warn("Failed to restore article reader session:", err);
+  }
+}
 
 // ===== 未学习单词弹框 =====
 const unmasteredWordsModal = ref({
@@ -2332,9 +3056,90 @@ watch(
   }
 );
 
+watch(articleReaderCurrentPage, async () => {
+  persistCurrentArticleReaderPage();
+  saveCurrentArticleReaderSession();
+  await nextTick();
+  scrollArticleReaderToTop();
+});
+
+watch(articleReaderMaterialKey, async (newKey) => {
+  if (!newKey || !articleParagraphs.value.length) {
+    resetArticleReaderPagination();
+    saveCurrentArticleReaderSession();
+    return;
+  }
+
+  articleReaderPendingParagraphIndex.value =
+    articleReaderPendingParagraphIndex.value ??
+    getSavedArticleReaderBlockIndex(newKey);
+  saveCurrentArticleReaderSession();
+  await recalculateArticleReaderPagination({
+    preferredBlockIndex: articleReaderPendingParagraphIndex.value,
+  });
+});
+
+watch(
+  [currentPage, articleMaterialUrl, articleMaterialId, articleTitle, articleText],
+  () => {
+    saveCurrentArticleReaderSession();
+  }
+);
+
+watch(articleReaderLayoutMode, async () => {
+  saveCurrentArticleReaderSession();
+  if (!articleParagraphs.value.length) {
+    return;
+  }
+
+  await recalculateArticleReaderPagination({
+    preferredBlockIndex: articleReaderPageStartIndex.value,
+  });
+});
+
+watch(articleReaderContentRef, async (element) => {
+  if (!(element instanceof HTMLElement)) {
+    destroyArticleReaderResizeObserver();
+    return;
+  }
+
+  await nextTick();
+  initArticleReaderResizeObserver();
+  await recalculateArticleReaderPagination({
+    preferredBlockIndex:
+      articleReaderPendingParagraphIndex.value ?? articleReaderPageStartIndex.value,
+  });
+});
+
+watch(playerSubtitleFontScale, async () => {
+  if (!articleParagraphs.value.length) {
+    return;
+  }
+
+  await recalculateArticleReaderPagination({
+    preferredBlockIndex: articleReaderPageStartIndex.value,
+  });
+});
+
+watch(
+  learningRecords,
+  async () => {
+    if (!articleParagraphs.value.length || currentPage.value !== "article") {
+      return;
+    }
+
+    await recalculateArticleReaderPagination({
+      preferredBlockIndex: articleReaderPageStartIndex.value,
+    });
+  },
+  { deep: true }
+);
+
 onMounted(async () => {
   loadMasteredWordsFromStorage();
   loadPlayerHistory();
+  loadArticleReaderProgress();
+  restoreArticleReaderSession();
   loadWordLabelsFromStorage();
   loadDataVersionsFromStorage();
   await tryLoadWordLabelsFromLocalIfNeeded();
@@ -2362,6 +3167,7 @@ onUnmounted(() => {
     window.removeEventListener("resize", chartResizeHandler);
     chartResizeHandler = null;
   }
+  destroyArticleReaderResizeObserver();
   destroyEnglishPlayer();
   document.removeEventListener("fullscreenchange", syncPlayerFullscreenState);
   document.removeEventListener("webkitfullscreenchange", syncPlayerFullscreenState);
@@ -2533,6 +3339,64 @@ function splitArticleIntoParagraphs(value) {
     return [];
   }
   return normalized.split(/\n{2,}/).filter(Boolean);
+}
+
+function splitLongTextIntoReaderChunks(value) {
+  const normalized = normalizeSubtitleText(value);
+  if (!normalized) {
+    return [];
+  }
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (
+    words.length <= ARTICLE_READER_CHUNK_MAX_WORDS &&
+    normalized.length <= ARTICLE_READER_CHUNK_MAX_CHARS
+  ) {
+    return [normalized];
+  }
+
+  const chunks = [];
+  let currentWords = [];
+  let currentLength = 0;
+
+  words.forEach((word) => {
+    const nextLength = currentWords.length ? currentLength + 1 + word.length : word.length;
+    if (
+      currentWords.length &&
+      (currentWords.length >= ARTICLE_READER_CHUNK_MAX_WORDS ||
+        nextLength > ARTICLE_READER_CHUNK_MAX_CHARS)
+    ) {
+      chunks.push(currentWords.join(" "));
+      currentWords = [word];
+      currentLength = word.length;
+      return;
+    }
+
+    currentWords.push(word);
+    currentLength = nextLength;
+  });
+
+  if (currentWords.length) {
+    chunks.push(currentWords.join(" "));
+  }
+
+  return chunks;
+}
+
+function buildArticleReaderUnits(paragraphs) {
+  return (Array.isArray(paragraphs) ? paragraphs : []).flatMap((paragraph, paragraphIndex) => {
+    const normalizedParagraph = normalizeSubtitleText(paragraph);
+    if (!normalizedParagraph) {
+      return [];
+    }
+
+    return splitLongTextIntoReaderChunks(normalizedParagraph).map((chunk, unitIndex) => ({
+      key: `article-reader-unit-${paragraphIndex}-${unitIndex}`,
+      text: chunk,
+      paragraphIndex,
+      isParagraphStart: unitIndex === 0,
+    }));
+  });
 }
 
 function truncateText(value, maxLength = 96) {
@@ -7329,103 +8193,207 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+.article-header-shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.article-header-title-group {
+  min-width: 220px;
+}
+
+.article-header-title-group h2 {
+  margin: 0;
+  color: #163250;
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.article-header-stats {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(72px, 88px));
+  justify-content: center;
+  gap: 6px;
+}
+
+.article-header-stat {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  border: 1px solid #dbe9ff;
+  text-align: center;
+}
+
+.article-header-stat-label {
+  color: #607286;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.article-header-stat-value {
+  margin-top: 5px;
+  color: #163250;
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 700;
+  text-align: center;
+}
+
 .article-header-actions {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.article-header-layout-picker {
+  display: inline-flex;
+  align-items: center;
+}
+
+.article-header-page-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: #f7fbff;
+  border: 1px solid #dbe9ff;
+}
+
+.article-header-page-label,
+.article-header-page-total {
+  color: #526275;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.article-header-page-select {
+  width: 72px;
 }
 
 .article-header-btn {
-  min-width: 108px;
-  height: 42px !important;
-  padding: 0 18px !important;
+  min-width: 92px;
+  height: 38px !important;
+  padding: 0 12px !important;
   border-radius: 12px !important;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
+}
+
+.article-font-scale-trigger-btn {
+  width: 80px;
+  min-width: 80px;
+  padding: 0 8px !important;
 }
 
 .article-content-layout {
   flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 16px;
-}
-
-.article-sidebar {
+  height: 100%;
   min-height: 0;
   display: flex;
-}
-
-.article-sidebar-card {
-  flex: 1;
-  min-height: 0;
-  max-height: 100%;
-  overflow-y: auto;
-  box-sizing: border-box;
-  padding: 18px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
-  border: 1px solid #dbe9ff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.article-sidebar-header {
-  margin-bottom: 12px;
-}
-
-.article-sidebar-header h3 {
-  margin: 0;
-  color: #163250;
-  font-size: 18px;
-  font-weight: 700;
+  flex-direction: column;
 }
 
 .article-reader-card {
   flex: 1;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
 }
 
-.article-coverage-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.article-reader-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  gap: 8px;
+  align-items: stretch;
 }
 
-.article-coverage-card {
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: #fff;
-  border: 1px solid #e6f0ff;
-}
-
-.article-coverage-top {
-  display: flex;
+.article-reader-edge-nav {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: center;
+  color: rgba(22, 119, 255, 0.42);
+  background: transparent;
+  transition: color 0.2s ease, opacity 0.2s ease;
 }
 
-.article-coverage-title {
-  color: #163250;
-  font-size: 14px;
-  font-weight: 700;
+.article-reader-edge-nav:hover:not(:disabled) {
+  color: rgba(22, 119, 255, 0.82);
 }
 
-.article-coverage-value {
-  color: #1677ff;
-  font-size: 24px;
-  line-height: 1;
-  font-weight: 700;
+.article-reader-edge-nav:disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+}
+
+.article-reader-edge-nav .anticon {
+  font-size: 20px;
 }
 
 .article-reader-content {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 6px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  padding: 0 2px;
+}
+
+.article-reader-page {
+  height: 100%;
+}
+
+.article-reader-page.is-spread {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.article-reader-page-column {
+  min-width: 0;
+}
+
+.article-reader-page-divider {
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(
+    180deg,
+    rgba(22, 50, 80, 0.06) 0%,
+    rgba(22, 50, 80, 0.18) 30%,
+    rgba(22, 50, 80, 0.18) 70%,
+    rgba(22, 50, 80, 0.06) 100%
+  );
+}
+
+.article-reader-measure {
+  position: fixed;
+  top: 0;
+  left: -200vw;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+  overflow: hidden;
 }
 
 .interactive-word-actionable {
@@ -7443,6 +8411,13 @@ body {
   gap: 16px;
 }
 
+.article-word-action-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .article-word-action-token {
   color: #163250;
   font-size: 28px;
@@ -7450,11 +8425,11 @@ body {
   font-weight: 700;
 }
 
-.article-word-action-target-hint {
-  margin-top: -10px;
-  color: #607286;
-  font-size: 13px;
-  line-height: 1.6;
+.article-word-action-inline-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .article-word-action-toolbar {
@@ -7478,18 +8453,10 @@ body {
   font-weight: 700;
 }
 
-.article-word-action-rating-text {
-  margin-top: 8px;
-  color: #526275;
-  font-size: 13px;
-}
-
 .article-paragraph-list {
-  width: min(900px, 100%);
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .article-paragraph {
@@ -7498,6 +8465,18 @@ body {
   font-size: calc(20px * var(--player-subtitle-font-scale, 1));
   line-height: 1.95;
   text-indent: 2em;
+}
+
+.article-paragraph + .article-paragraph {
+  margin-top: 22px;
+}
+
+.article-paragraph + .article-paragraph-continuation {
+  margin-top: 0;
+}
+
+.article-paragraph-continuation {
+  text-indent: 0;
 }
 
 /* 左侧表格区域 */
@@ -8206,7 +9185,7 @@ body {
   }
 
   .article-page {
-    height: auto;
+    height: calc(100dvh - 104px);
   }
 
   .player-content {
@@ -8277,6 +9256,10 @@ body {
     padding: 15px;
   }
 
+  .article-page {
+    height: calc(100dvh - 90px);
+  }
+
   .player-source-link {
     grid-template-columns: 1fr;
     gap: 6px;
@@ -8327,18 +9310,32 @@ body {
   }
 
   .article-header-actions {
+    width: 100%;
     justify-content: space-between;
   }
 
-  .article-sidebar-card,
+  .article-header-shell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .article-header-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .article-header-page-picker {
+    flex: 1;
+    justify-content: space-between;
+  }
+
+  .article-reader-shell {
+    grid-template-columns: 32px minmax(0, 1fr) 32px;
+    gap: 6px;
+  }
+
   .article-header-card,
   .article-reader-card {
     padding: 15px;
-  }
-
-  .article-coverage-top {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .player-progress-row {
