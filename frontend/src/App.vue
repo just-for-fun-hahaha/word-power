@@ -453,11 +453,20 @@
                       >
                         <div class="progress-header">
                           <span class="progress-label">{{ formatWordLevelLabel(label) }}</span>
-                          <span class="progress-percentage"
-                            >{{ progress.mastered }} / {{ progress.total }} ({{
-                              progress.percentage
-                            }}%)</span
-                          >
+                          <div class="progress-header-actions">
+                            <a-button
+                              v-if="canCopyUnmasteredWordsByLabel(label, progress.total - progress.mastered)"
+                              size="small"
+                              @click.stop="copyUnmasteredWordsByLabel(label)"
+                            >
+                              Copy List
+                            </a-button>
+                            <span class="progress-percentage"
+                              >{{ progress.mastered }} / {{ progress.total }} ({{
+                                progress.percentage
+                              }}%)</span
+                            >
+                          </div>
                         </div>
                         <a-progress
                           :percent="progress.percentage"
@@ -1273,6 +1282,17 @@
         No words below 5 stars
       </div>
       <div v-else>
+        <div
+          v-if="canCopyUnmasteredWordsByLabel(unmasteredWordsModal.label, unmasteredWordsModal.words.length)"
+          class="unmastered-words-toolbar"
+        >
+          <span class="unmastered-words-toolbar-hint">
+            Copy the full list to clipboard, one word per line.
+          </span>
+          <a-button size="small" @click="copyUnmasteredWordsByLabel(unmasteredWordsModal.label)">
+            Copy List
+          </a-button>
+        </div>
         <a-table
           :columns="unmasteredWordsColumns"
           :data-source="unmasteredWordsTableData"
@@ -1409,6 +1429,7 @@ const WORD_TAG_TOP_5000 = "Top 5000";
 const WORD_TAG_TOP_10000 = "Top 10000";
 const WORD_TAG_10000_PLUS = "10000+";
 const WORD_TAG_OFF_LIST = "Off-list";
+const UNMASTERED_EXPORTABLE_LABELS = ["3000", "5000"];
 const PLAYER_TIMER_INTERVAL_MS = 80;
 const SINGLE_LINE_STOP_BUFFER = 0.04;
 const SINGLE_LINE_EARLY_PAUSE_SEC = 0.12;
@@ -5329,16 +5350,22 @@ function getWordsByLabel(label) {
   return Array.from(labelWordSets.value[label] || []);
 }
 
+function getUnmasteredWordsByLabel(label) {
+  const masteredSet = new Set(Object.keys(masteredWords.value));
+  return getWordsByLabel(label)
+    .filter((word) => !masteredSet.has(word))
+    .sort();
+}
+
 function refreshUnmasteredWordsModalWords() {
   if (!unmasteredWordsModal.value.label) {
     unmasteredWordsModal.value.words = [];
     return;
   }
 
-  const masteredSet = new Set(Object.keys(masteredWords.value));
-  unmasteredWordsModal.value.words = getWordsByLabel(unmasteredWordsModal.value.label)
-    .filter((word) => !masteredSet.has(word))
-    .sort();
+  unmasteredWordsModal.value.words = getUnmasteredWordsByLabel(
+    unmasteredWordsModal.value.label
+  );
 
   const pageSize = Math.max(1, Number(unmasteredWordsPagination.value.pageSize) || 50);
   const maxPage = Math.max(1, Math.ceil(unmasteredWordsModal.value.words.length / pageSize));
@@ -5367,6 +5394,35 @@ async function showUnmasteredWords(label, progress) {
     refreshUnmasteredWordsModalWords();
   } finally {
     unmasteredWordsModal.value.loading = false;
+  }
+}
+
+function canCopyUnmasteredWordsByLabel(label, count) {
+  return UNMASTERED_EXPORTABLE_LABELS.includes(label) && Number(count || 0) > 0;
+}
+
+async function copyUnmasteredWordsByLabel(label) {
+  if (!UNMASTERED_EXPORTABLE_LABELS.includes(label)) {
+    message.info("Copy is available for Top 3000 and Top 5000 only.");
+    return;
+  }
+
+  const words = getUnmasteredWordsByLabel(label);
+  if (!words.length) {
+    message.info(`All ${formatWordLevelLabel(label)} words are already 5 stars.`);
+    return;
+  }
+
+  try {
+    const copied = await writeClipboardText(words.join("\n"));
+    if (!copied) {
+      throw new Error("copy_failed");
+    }
+    message.success(
+      `Copied ${words.length} ${formatWordLevelLabel(label)} words below 5 stars, one per line.`
+    );
+  } catch {
+    message.error("Copy failed. Check browser clipboard permissions.");
   }
 }
 
@@ -9042,6 +9098,15 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.progress-header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .progress-label {
@@ -9054,6 +9119,21 @@ body {
   color: #1890ff;
   font-size: 14px;
   font-weight: 600;
+}
+
+.unmastered-words-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.unmastered-words-toolbar-hint {
+  color: #607286;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 /* 按钮风格统一（保留尺寸差异） */
