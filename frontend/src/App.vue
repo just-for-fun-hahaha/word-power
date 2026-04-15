@@ -329,17 +329,10 @@
               </div>
               <div class="stats-charts-container">
                 <div class="stats-chart-item">
-                  <h3>Cumulative Mastered Words</h3>
+                  <h3>Mastered Words Over Time</h3>
                   <div
-                    ref="cumulativeChartContainer"
-                    style="width: 100%; height: 400px;"
-                  ></div>
-                </div>
-                <div class="stats-chart-item">
-                  <h3>New Words per Day</h3>
-                  <div
-                    ref="newWordsChartContainer"
-                    style="width: 100%; height: 400px;"
+                    ref="statsChartContainer"
+                    style="width: 100%; height: 420px;"
                   ></div>
                 </div>
               </div>
@@ -359,26 +352,45 @@
                 </label>
               </div>
 
-              <a-table
-                :columns="tedColumns"
-                :data-source="tedFilteredResults"
-                :pagination="tedPagination"
-                :scroll="{ x: 'max-content', y: 'calc(100vh - 320px)' }"
-                row-key="word"
-                :loading="tedLoading"
-                :row-class-name="(record) => (record.mastered ? 'mastered-row' : '')"
-                @change="handleTedTableChange"
-              >
-                <template #bodyCell="{ column, record, index }">
-                  <template v-if="column.key === 'index'">
-                    {{ (tedPagination.current - 1) * tedPagination.pageSize + index + 1 }}
-                  </template>
-                  <template v-if="column.key === 'word'">
-                    <div :style="record.mastered ? { opacity: 0.5 } : {}">
-                      <strong style="font-size: 20px; font-weight: 600;">{{ record.word }}</strong>
+              <div class="ted-word-list-body">
+                <div v-if="tedLoading" class="ted-word-list-status">
+                  <a-spin size="large" />
+                </div>
+                <div
+                  v-else-if="tedPagedResults.length === 0"
+                  class="ted-word-list-status ted-word-list-empty"
+                >
+                  No words match the current filters.
+                </div>
+                <div v-else class="ted-word-list-grid">
+                  <div
+                    v-for="(record, index) in tedPagedResults"
+                    :key="record.word"
+                    class="ted-word-card"
+                    :class="{ mastered: record.mastered }"
+                  >
+                    <div class="ted-word-card-top">
+                      <span class="ted-word-card-index">
+                        {{ tedPageStartIndex + index + 1 }}
+                      </span>
+                      <a-tag
+                        :color="getWordTagColor(getPrimaryWordTag(record))"
+                        style="cursor: pointer;"
+                        @click.stop="filterTedByTag(getPrimaryWordTag(record))"
+                        :style="
+                          tedSelectedTagFilter === getPrimaryWordTag(record)
+                            ? 'border: 2px solid #1890ff; font-weight: 600;'
+                            : ''
+                        "
+                      >
+                        {{ getPrimaryWordTag(record) }}
+                      </a-tag>
                     </div>
-                  </template>
-                  <template v-if="column.key === 'familiarity'">
+
+                    <div class="ted-word-card-word">
+                      {{ record.word }}
+                    </div>
+
                     <div class="ted-familiarity-cell">
                       <a-rate
                         :value="record.familiarity"
@@ -390,36 +402,25 @@
                         {{ formatFamiliarityLabel(record.familiarity) }}
                       </span>
                     </div>
-                  </template>
-                  <template v-if="column.key === 'tags'">
-                    <a-tag
-                      v-for="tag in record.tags"
-                      :key="tag"
-                      :color="
-                        tag === WORD_TAG_TOP_3000
-                          ? 'green'
-                          : tag === WORD_TAG_TOP_5000
-                          ? 'blue'
-                          : tag === WORD_TAG_TOP_10000
-                          ? 'orange'
-                          : tag === WORD_TAG_10000_PLUS
-                          ? 'volcano'
-                          : 'default'
-                      "
-                      style="cursor: pointer;"
-                      @click.stop="filterTedByTag(tag)"
-                      :style="
-                        tedSelectedTagFilter === tag
-                          ? 'border: 2px solid #1890ff; font-weight: 600;'
-                          : ''
-                      "
-                    >
-                      {{ tag }}
-                    </a-tag>
-                    <span v-if="record.tags.length === 0" style="color: #ccc">-</span>
-                  </template>
-                </template>
-              </a-table>
+                  </div>
+                </div>
+
+                <a-pagination
+                  v-if="tedFilteredResults.length > 0"
+                  class="ted-word-list-pagination"
+                  :current="tedPagination.current"
+                  :page-size="tedPagination.pageSize"
+                  :total="tedFilteredResults.length"
+                  :show-size-changer="tedPagination.showSizeChanger"
+                  :show-less-items="tedPagination.showLessItems"
+                  :responsive="tedPagination.responsive"
+                  :size="tedPagination.size"
+                  :page-size-options="tedPagination.pageSizeOptions"
+                  :show-total="tedPagination.showTotal"
+                  @change="handleTedPageChange"
+                  @showSizeChange="handleTedPageChange"
+                />
+              </div>
             </div>
 
             <!-- 右侧：配置区域 -->
@@ -503,56 +504,24 @@
                         {{ tedResults.filter(item => item.mastered).length }}
                       </div>
                     </div>
-                    <div class="overview-item" v-if="tedTagCounts.common3000.total > 0">
-                      <div class="overview-label">Top 3000</div>
+                    <button
+                      v-for="item in tedOverviewTagCards"
+                      :key="item.tag"
+                      type="button"
+                      class="overview-item overview-item-button"
+                      :class="{ active: tedSelectedTagFilter === item.tag }"
+                      :aria-pressed="tedSelectedTagFilter === item.tag"
+                      @click="filterTedByTag(item.tag)"
+                    >
+                      <div class="overview-label">{{ item.label }}</div>
                       <div class="overview-value">
-                        <span class="value-unmastered">{{ tedTagCounts.common3000.unmastered }}</span>
+                        <span class="value-unmastered">{{ item.summary.unmastered }}</span>
                         <span class="value-detail"
-                          >(total <span class="value-total">{{ tedTagCounts.common3000.total }}</span
-                          >, mastered <span class="value-mastered">{{ tedTagCounts.common3000.mastered }}</span>)</span
+                          >(total <span class="value-total">{{ item.summary.total }}</span
+                          >, mastered <span class="value-mastered">{{ item.summary.mastered }}</span>)</span
                         >
                       </div>
-                    </div>
-                    <div class="overview-item" v-if="tedTagCounts.common5000.total > 0">
-                      <div class="overview-label">Top 5000</div>
-                      <div class="overview-value">
-                        <span class="value-unmastered">{{ tedTagCounts.common5000.unmastered }}</span>
-                        <span class="value-detail"
-                          >(total <span class="value-total">{{ tedTagCounts.common5000.total }}</span
-                          >, mastered <span class="value-mastered">{{ tedTagCounts.common5000.mastered }}</span>)</span
-                        >
-                      </div>
-                    </div>
-                    <div class="overview-item" v-if="tedTagCounts.common10000.total > 0">
-                      <div class="overview-label">Top 10000</div>
-                      <div class="overview-value">
-                        <span class="value-unmastered">{{ tedTagCounts.common10000.unmastered }}</span>
-                        <span class="value-detail"
-                          >(total <span class="value-total">{{ tedTagCounts.common10000.total }}</span
-                          >, mastered <span class="value-mastered">{{ tedTagCounts.common10000.mastered }}</span>)</span
-                        >
-                      </div>
-                    </div>
-                    <div class="overview-item" v-if="tedTagCounts.common10000Plus.total > 0">
-                      <div class="overview-label">10000+</div>
-                      <div class="overview-value">
-                        <span class="value-unmastered">{{ tedTagCounts.common10000Plus.unmastered }}</span>
-                        <span class="value-detail"
-                          >(total <span class="value-total">{{ tedTagCounts.common10000Plus.total }}</span
-                          >, mastered <span class="value-mastered">{{ tedTagCounts.common10000Plus.mastered }}</span>)</span
-                        >
-                      </div>
-                    </div>
-                    <div class="overview-item" v-if="tedTagCounts.nonCommon.total > 0">
-                      <div class="overview-label">Off-list</div>
-                      <div class="overview-value">
-                        <span class="value-unmastered">{{ tedTagCounts.nonCommon.unmastered }}</span>
-                        <span class="value-detail"
-                          >(total <span class="value-total">{{ tedTagCounts.nonCommon.total }}</span
-                          >, mastered <span class="value-mastered">{{ tedTagCounts.nonCommon.mastered }}</span>)</span
-                        >
-                      </div>
-                    </div>
+                    </button>
                     <div
                       v-for="metric in tedDifficultyAssessment?.metrics || []"
                       :key="`overview-metric-${metric.label}`"
@@ -776,7 +745,7 @@
                     <a-button
                       type="link"
                       size="small"
-                      @click="clearWordFamiliarity(record.word)"
+                      @click="promptClearWordFamiliarity(record.word)"
                     >
                       Clear
                     </a-button>
@@ -1401,7 +1370,7 @@ import {
   CaretRightOutlined,
   PauseOutlined,
 } from "@ant-design/icons-vue";
-import { message } from "ant-design-vue";
+import { message, Modal } from "ant-design-vue";
 
 const locale = enUS;
 const APP_BUILD_TIME_ISO = __APP_BUILD_TIME__;
@@ -1553,11 +1522,16 @@ function formatWordLevelLabel(label) {
 }
 
 // ===== 图表状态 =====
-const cumulativeChartContainer = ref(null);
-const newWordsChartContainer = ref(null);
-let cumulativeChartInstance = null;
-let newWordsChartInstance = null;
+const statsChartContainer = ref(null);
+let statsChartInstance = null;
 let chartResizeHandler = null;
+
+function disposeStatsChart() {
+  if (statsChartInstance) {
+    statsChartInstance.dispose();
+    statsChartInstance = null;
+  }
+}
 
 // ===== 学习数据（本地） =====
 const learningProgress = ref(null);
@@ -1675,35 +1649,6 @@ const canOpenArticlePage = computed(() => articleParagraphs.value.length > 0);
 const appBuildTimeLabel = computed(() => formatBuildTimeUtc(APP_BUILD_TIME_ISO));
 
 // ===== TED页面状态 =====
-const tedColumns = [
-  {
-    title: "#",
-    key: "index",
-    width: 80,
-    align: "left",
-  },
-  {
-    title: "Word",
-    dataIndex: "word",
-    key: "word",
-    width: 200,
-    fixed: "left",
-    align: "left",
-  },
-  {
-    title: "Familiarity",
-    key: "familiarity",
-    width: 240,
-    align: "left",
-  },
-  {
-    title: "Tag",
-    key: "tags",
-    width: 150,
-    align: "left",
-  },
-];
-
 const youtubeUrl = ref("");
 const parsedYoutubeUrl = ref("");
 const youtubeVideoTitle = ref("");
@@ -1777,6 +1722,19 @@ const tedFilteredResults = computed(() => {
   );
 });
 
+const tedPagedResults = computed(() => {
+  const current = Math.max(1, Number(tedPagination.value.current) || 1);
+  const pageSize = Math.max(1, Number(tedPagination.value.pageSize) || 20);
+  const startIndex = (current - 1) * pageSize;
+  return tedFilteredResults.value.slice(startIndex, startIndex + pageSize);
+});
+
+const tedPageStartIndex = computed(() => {
+  const current = Math.max(1, Number(tedPagination.value.current) || 1);
+  const pageSize = Math.max(1, Number(tedPagination.value.pageSize) || 20);
+  return (current - 1) * pageSize;
+});
+
 function clampTedPaginationPage() {
   const pageSize = Math.max(1, Number(tedPagination.value.pageSize) || 20);
   const maxPage = Math.max(1, Math.ceil(tedFilteredResults.value.length / pageSize));
@@ -1831,6 +1789,36 @@ const tedTagCounts = computed(() => {
   });
 
   return counts;
+});
+
+const tedOverviewTagCards = computed(() => {
+  return [
+    {
+      tag: WORD_TAG_TOP_3000,
+      label: WORD_TAG_TOP_3000,
+      summary: tedTagCounts.value.common3000,
+    },
+    {
+      tag: WORD_TAG_TOP_5000,
+      label: WORD_TAG_TOP_5000,
+      summary: tedTagCounts.value.common5000,
+    },
+    {
+      tag: WORD_TAG_TOP_10000,
+      label: WORD_TAG_TOP_10000,
+      summary: tedTagCounts.value.common10000,
+    },
+    {
+      tag: WORD_TAG_10000_PLUS,
+      label: WORD_TAG_10000_PLUS,
+      summary: tedTagCounts.value.common10000Plus,
+    },
+    {
+      tag: WORD_TAG_OFF_LIST,
+      label: WORD_TAG_OFF_LIST,
+      summary: tedTagCounts.value.nonCommon,
+    },
+  ].filter((item) => item.summary.total > 0);
 });
 
 const tedDifficultyAssessment = computed(() => {
@@ -3176,14 +3164,7 @@ watch(isDataSetupReady, (ready) => {
 });
 
 onUnmounted(() => {
-  if (cumulativeChartInstance) {
-    cumulativeChartInstance.dispose();
-    cumulativeChartInstance = null;
-  }
-  if (newWordsChartInstance) {
-    newWordsChartInstance.dispose();
-    newWordsChartInstance = null;
-  }
+  disposeStatsChart();
   if (chartResizeHandler) {
     window.removeEventListener("resize", chartResizeHandler);
     chartResizeHandler = null;
@@ -3198,18 +3179,11 @@ onUnmounted(() => {
 watch(showStatsPage, async (newVal) => {
   if (newVal) {
     await nextTick();
-    if (cumulativeChartContainer.value && newWordsChartContainer.value) {
+    if (statsChartContainer.value) {
       await loadStatsData();
     }
   } else {
-    if (cumulativeChartInstance) {
-      cumulativeChartInstance.dispose();
-      cumulativeChartInstance = null;
-    }
-    if (newWordsChartInstance) {
-      newWordsChartInstance.dispose();
-      newWordsChartInstance = null;
-    }
+    disposeStatsChart();
   }
 });
 
@@ -4513,7 +4487,7 @@ function getWordLearningUpdatedAt(word) {
 function refreshTedMasteredFlags() {
   if (!tedResults.value.length) return;
 
-  tedResults.value = tedResults.value.map((item) => {
+  tedResults.value = sortWordListRecords(tedResults.value.map((item) => {
     const familiarity = getWordFamiliarity(item.word);
     const masteredDate = masteredWords.value[item.word] || "";
     return {
@@ -4523,11 +4497,7 @@ function refreshTedMasteredFlags() {
       mastered_date: masteredDate,
       updated_at: getWordLearningUpdatedAt(item.word),
     };
-  });
-
-  const unmastered = tedResults.value.filter((r) => !r.mastered);
-  const mastered = tedResults.value.filter((r) => r.mastered);
-  tedResults.value = [...unmastered, ...mastered];
+  }));
 }
 
 function getWordLabel(word) {
@@ -4547,6 +4517,48 @@ function getWordTags(word) {
   if (label === "5000") return [WORD_TAG_TOP_5000];
   if (label === "10000") return [WORD_TAG_TOP_10000];
   return [WORD_TAG_10000_PLUS];
+}
+
+function getPrimaryWordTag(record) {
+  const tags = Array.isArray(record?.tags) ? record.tags : [];
+  return tags[0] || WORD_TAG_10000_PLUS;
+}
+
+function getWordTagColor(tag) {
+  if (tag === WORD_TAG_TOP_3000) return "green";
+  if (tag === WORD_TAG_TOP_5000) return "blue";
+  if (tag === WORD_TAG_TOP_10000) return "orange";
+  if (tag === WORD_TAG_10000_PLUS) return "volcano";
+  return "default";
+}
+
+function getWordDifficultyRankByTag(tag) {
+  if (tag === WORD_TAG_TOP_3000) return 0;
+  if (tag === WORD_TAG_TOP_5000) return 1;
+  if (tag === WORD_TAG_TOP_10000) return 2;
+  if (tag === WORD_TAG_10000_PLUS) return 3;
+  return 4;
+}
+
+function compareWordListRecords(a, b) {
+  const difficultyDelta =
+    getWordDifficultyRankByTag(getPrimaryWordTag(a)) -
+    getWordDifficultyRankByTag(getPrimaryWordTag(b));
+  if (difficultyDelta !== 0) {
+    return difficultyDelta;
+  }
+
+  const familiarityDelta =
+    Number(b?.familiarity || 0) - Number(a?.familiarity || 0);
+  if (familiarityDelta !== 0) {
+    return familiarityDelta;
+  }
+
+  return String(a?.word || "").localeCompare(String(b?.word || ""));
+}
+
+function sortWordListRecords(records) {
+  return [...records].sort(compareWordListRecords);
 }
 
 function buildNormalizedTranscriptLemmaLines(lines) {
@@ -4962,11 +4974,7 @@ function analyzeSubtitleLines(lines) {
     };
   });
 
-  results.sort((a, b) => {
-    return a.word.localeCompare(b.word);
-  });
-
-  return results;
+  return sortWordListRecords(results);
 }
 
 function buildLearningProgress() {
@@ -5048,51 +5056,98 @@ async function loadStatsData() {
 }
 
 async function renderCharts(statsData) {
-  if (!cumulativeChartContainer.value || !newWordsChartContainer.value) return;
+  if (!statsChartContainer.value) return;
 
   const echarts = await import("echarts");
 
   const dates = statsData.map((item) => item.date);
   const cumulative = statsData.map((item) => item.cumulative);
   const newWords = statsData.map((item) => item.new_words || 0);
+  const cumulativeMin = cumulative.length > 0 ? Math.max(0, cumulative[0] - 10) : 0;
 
-  let yAxisMin = 0;
-  if (cumulative.length > 0 && cumulative[0] > 0) {
-    yAxisMin = Math.max(0, cumulative[0] - 10);
-  }
+  disposeStatsChart();
+  statsChartInstance = echarts.init(statsChartContainer.value);
 
-  if (cumulativeChartInstance) {
-    cumulativeChartInstance.dispose();
-  }
-  cumulativeChartInstance = echarts.init(cumulativeChartContainer.value);
-
-  cumulativeChartInstance.setOption({
+  statsChartInstance.setOption({
+    color: ["#1890ff", "#52c41a"],
+    legend: {
+      top: 0,
+      right: 0,
+      itemWidth: 12,
+      itemHeight: 12,
+      textStyle: {
+        color: "#595959",
+      },
+      data: ["Cumulative Mastered Words", "New Words"],
+    },
     tooltip: {
       trigger: "axis",
-      formatter: (params) => {
-        const data = params[0];
-        return `${data.name}<br/>Cumulative mastered: ${data.value} words`;
+      axisPointer: {
+        type: "shadow",
       },
+      formatter: (params) => {
+        const cumulativeItem = params.find(
+          (item) => item.seriesName === "Cumulative Mastered Words"
+        );
+        const newWordsItem = params.find(
+          (item) => item.seriesName === "New Words"
+        );
+
+        return [
+          params[0]?.axisValue || "",
+          `Cumulative mastered: ${cumulativeItem?.value ?? 0} words`,
+          `New words: ${newWordsItem?.value ?? 0} words`,
+        ].join("<br/>");
+      },
+    },
+    grid: {
+      top: 56,
+      left: 56,
+      right: 56,
+      bottom: 32,
+      containLabel: true,
     },
     xAxis: {
       type: "category",
       data: dates,
-      boundaryGap: false,
-    },
-    yAxis: {
-      type: "value",
-      name: "Cumulative Words",
-      min: yAxisMin,
-      axisLabel: {
-        formatter: "{value}",
+      boundaryGap: true,
+      axisTick: {
+        alignWithLabel: true,
       },
     },
+    yAxis: [
+      {
+        type: "value",
+        name: "Cumulative",
+        position: "left",
+        min: cumulativeMin,
+        axisLabel: {
+          formatter: "{value}",
+        },
+      },
+      {
+        type: "value",
+        name: "New",
+        position: "right",
+        min: 0,
+        axisLabel: {
+          formatter: "{value}",
+        },
+        splitLine: {
+          show: false,
+        },
+      },
+    ],
     series: [
       {
         name: "Cumulative Mastered Words",
         type: "line",
+        yAxisIndex: 0,
         data: cumulative,
         smooth: true,
+        showSymbol: dates.length <= 31,
+        symbolSize: 6,
+        z: 3,
         areaStyle: {
           color: {
             type: "linear",
@@ -5101,75 +5156,32 @@ async function renderCharts(statsData) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: "rgba(24, 144, 255, 0.3)" },
-              { offset: 1, color: "rgba(24, 144, 255, 0.05)" },
+              { offset: 0, color: "rgba(24, 144, 255, 0.25)" },
+              { offset: 1, color: "rgba(24, 144, 255, 0.04)" },
             ],
           },
         },
         lineStyle: {
           color: "#1890ff",
-          width: 2,
+          width: 2.5,
         },
         itemStyle: {
           color: "#1890ff",
         },
       },
-    ],
-    grid: {
-      left: "3%",
-      right: "4%",
-      bottom: "3%",
-      containLabel: true,
-    },
-  });
-
-  if (newWordsChartInstance) {
-    newWordsChartInstance.dispose();
-  }
-  newWordsChartInstance = echarts.init(newWordsChartContainer.value);
-
-  newWordsChartInstance.setOption({
-    tooltip: {
-      trigger: "axis",
-      formatter: (params) => {
-        const data = params[0];
-        return `${data.name}<br/>New today: ${data.value} words`;
-      },
-    },
-    xAxis: {
-      type: "category",
-      data: dates,
-      boundaryGap: false,
-    },
-    yAxis: {
-      type: "value",
-      name: "New Words",
-      min: 0,
-      axisLabel: {
-        formatter: "{value}",
-      },
-    },
-    series: [
       {
-        name: "New Words per Day",
-        type: "line",
+        name: "New Words",
+        type: "bar",
+        yAxisIndex: 1,
         data: newWords,
-        smooth: true,
-        lineStyle: {
-          color: "#52c41a",
-          width: 2,
-        },
+        barMaxWidth: 18,
+        z: 2,
         itemStyle: {
-          color: "#52c41a",
+          color: "rgba(82, 196, 26, 0.75)",
+          borderRadius: [4, 4, 0, 0],
         },
       },
     ],
-    grid: {
-      left: "3%",
-      right: "4%",
-      bottom: "3%",
-      containLabel: true,
-    },
   });
 
   if (chartResizeHandler) {
@@ -5177,8 +5189,7 @@ async function renderCharts(statsData) {
   }
 
   chartResizeHandler = () => {
-    if (cumulativeChartInstance) cumulativeChartInstance.resize();
-    if (newWordsChartInstance) newWordsChartInstance.resize();
+    if (statsChartInstance) statsChartInstance.resize();
   };
   window.addEventListener("resize", chartResizeHandler);
 }
@@ -5475,6 +5486,23 @@ async function clearWordFamiliarity(word) {
   });
 }
 
+function promptClearWordFamiliarity(word) {
+  const normalizedWord = String(word || "").trim().toLowerCase();
+  if (!normalizedWord) {
+    return;
+  }
+
+  Modal.confirm({
+    title: "Delete familiarity?",
+    content: `Delete the familiarity record for "${normalizedWord}"?`,
+    okText: "Delete",
+    okButtonProps: { danger: true },
+    cancelText: "Cancel",
+    onOk: () =>
+      clearWordFamiliarity(normalizedWord),
+  });
+}
+
 function getFamiliarityReviewFilterTitle(filterKey) {
   if (filterKey === REVIEW_FAMILIARITY_ALL_KEY) {
     return "All";
@@ -5498,9 +5526,9 @@ function selectFamiliarityReviewStar(filterKey) {
   familiarityReviewPagination.value.current = 1;
 }
 
-function handleTedTableChange(pag) {
-  tedPagination.value.current = pag.current;
-  tedPagination.value.pageSize = pag.pageSize;
+function handleTedPageChange(page, pageSize) {
+  tedPagination.value.current = page;
+  tedPagination.value.pageSize = pageSize;
 }
 
 function filterTedByTag(tag) {
@@ -8645,6 +8673,77 @@ body {
   white-space: nowrap;
 }
 
+.ted-word-list-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ted-word-list-status {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+}
+
+.ted-word-list-empty {
+  color: #8a94a6;
+  font-size: 14px;
+}
+
+.ted-word-list-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.ted-word-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 148px;
+  padding: 16px;
+  border: 1px solid #e6edf5;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 2px 10px rgba(15, 42, 77, 0.06);
+}
+
+.ted-word-card.mastered {
+  opacity: 0.55;
+}
+
+.ted-word-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ted-word-card-index {
+  color: #7c8ca0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ted-word-card-word {
+  color: #163250;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.ted-word-list-pagination {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
 /* 上方左右布局 */
 .config-top-section {
   display: flex;
@@ -8793,6 +8892,28 @@ body {
   border-radius: 8px;
   text-align: center;
   min-height: 80px;
+}
+
+.overview-item-button {
+  width: 100%;
+  appearance: none;
+  border: 1px solid transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.overview-item-button:hover {
+  border-color: #91caff;
+  box-shadow: 0 6px 16px rgba(24, 144, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.overview-item-button.active {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.12);
+  background: #e6f4ff;
 }
 
 .overview-label {
@@ -9216,21 +9337,15 @@ body {
   overflow: visible !important;
 }
 
-/* 表格分页器样式 */
-:deep(.ant-table-pagination) {
-  margin: 8px 0 0 0;
-  padding-top: 8px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.table-section :deep(.ant-table-pagination.ant-pagination) {
+/* Word List 分页器样式 */
+.table-section :deep(.ant-pagination.ant-pagination) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
 }
 
-.table-section :deep(.ant-table-pagination .ant-pagination-options) {
+.table-section :deep(.ant-pagination .ant-pagination-options) {
   margin-inline-start: auto;
 }
 

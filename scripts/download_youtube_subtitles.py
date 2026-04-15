@@ -111,6 +111,37 @@ def normalize_browser_name(value: str) -> str:
     return normalized
 
 
+def is_safari_cookie_permission_error(exc: Exception) -> bool:
+    message = str(exc)
+    return "Cookies.binarycookies" in message and "Operation not permitted" in message
+
+
+def should_retry_without_browser_cookies(args: argparse.Namespace, exc: Exception) -> bool:
+    browser_name = normalize_browser_name(getattr(args, "cookies_from_browser", ""))
+    return browser_name == "safari" and not getattr(args, "cookies", "") and is_safari_cookie_permission_error(exc)
+
+
+def clone_args_with_overrides(args: argparse.Namespace, **overrides) -> argparse.Namespace:
+    payload = vars(args).copy()
+    payload.update(overrides)
+    return argparse.Namespace(**payload)
+
+
+def run_with_safari_cookie_fallback(args: argparse.Namespace, action):
+    try:
+        return action(args), args
+    except Exception as exc:
+        if not should_retry_without_browser_cookies(args, exc):
+            raise
+
+        fallback_args = clone_args_with_overrides(args, cookies_from_browser="none")
+        print(
+            "警告: Safari cookies 因 macOS 权限限制不可读，"
+            "已自动跳过 Safari cookies 并重试。"
+        )
+        return action(fallback_args), fallback_args
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="下载 YouTube 字幕到本地 SRT")
     parser.add_argument("youtube_url", help="YouTube 视频链接或视频 ID")
@@ -312,8 +343,9 @@ def main() -> int:
     args = parse_args()
     url = normalize_youtube_input(args.youtube_url)
     video_id = extract_youtube_video_id(args.youtube_url)
+    active_args = args
 
-    common_ydl_opts = build_common_ydl_options(args)
+    common_ydl_opts = build_common_ydl_options(active_args)
     configured_runtimes = list((common_ydl_opts.get("js_runtimes") or {}).keys())
     if configured_runtimes:
         print(f"已启用 JS runtime: {', '.join(configured_runtimes)}")
@@ -324,26 +356,36 @@ def main() -> int:
             "请安装 deno 或 node，或显式传 --js-runtime node。"
         )
 
-    browser_name = normalize_browser_name(args.cookies_from_browser)
-    if browser_name and args.cookies:
+    browser_name = normalize_browser_name(active_args.cookies_from_browser)
+    if browser_name and active_args.cookies:
         print("提示: 已同时传入 --cookies-from-browser 和 --cookies，yt-dlp 会优先使用显式 cookies 文件。")
 
     try:
-        info = extract_subtitle_catalog(url, args)
-        if args.list_subs:
+        info, active_args = run_with_safari_cookie_fallback(
+            active_args,
+            lambda current_args: extract_subtitle_catalog(url, current_args),
+        )
+        if active_args.list_subs:
             print_subtitle_catalog(info)
             return 0
 
-        source_kind, selected_lang = select_subtitle_source(info, args.lang, args.allow_generated)
-        output_path = build_output_path(video_id, selected_lang, args.output)
+        source_kind, selected_lang = select_subtitle_source(
+            info,
+            active_args.lang,
+            active_args.allow_generated,
+        )
+        output_path = build_output_path(video_id, selected_lang, active_args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         YoutubeDL = _load_yt_dlp()
         with tempfile.TemporaryDirectory(prefix="yt_subs_") as temp_dir_name:
             temp_dir = Path(temp_dir_name)
-            ydl_opts = build_download_ydl_options(args, temp_dir, source_kind, selected_lang)
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+            def download_with_args(current_args: argparse.Namespace) -> None:
+                ydl_opts = build_download_ydl_options(current_args, temp_dir, source_kind, selected_lang)
+                with YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+
+            _, active_args = run_with_safari_cookie_fallback(active_args, download_with_args)
 
             subtitle_file = find_downloaded_subtitle(temp_dir, selected_lang)
             if subtitle_file is None:
@@ -361,7 +403,7 @@ def main() -> int:
         return 0
     except Exception as exc:
         message = str(exc)
-        if "Cookies.binarycookies" in message and "Operation not permitted" in message:
+        if is_safari_cookie_permission_error(exc):
             raise RuntimeError(
                 "无法读取 Safari cookies。macOS 拒绝了 Cookies.binarycookies 的访问权限。\n"
                 "可选解决方案：\n"

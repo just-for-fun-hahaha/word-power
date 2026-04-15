@@ -286,6 +286,37 @@ def normalize_browser_name(value: str) -> str:
     return normalized
 
 
+def is_safari_cookie_permission_error(exc: Exception) -> bool:
+    message = str(exc)
+    return "Cookies.binarycookies" in message and "Operation not permitted" in message
+
+
+def should_retry_without_browser_cookies(args: argparse.Namespace, exc: Exception) -> bool:
+    browser_name = normalize_browser_name(getattr(args, "cookies_from_browser", ""))
+    return browser_name == "safari" and not getattr(args, "cookies", "") and is_safari_cookie_permission_error(exc)
+
+
+def clone_args_with_overrides(args: argparse.Namespace, **overrides) -> argparse.Namespace:
+    payload = vars(args).copy()
+    payload.update(overrides)
+    return argparse.Namespace(**payload)
+
+
+def run_with_safari_cookie_fallback(args: argparse.Namespace, action):
+    try:
+        return action(args), args
+    except Exception as exc:
+        if not should_retry_without_browser_cookies(args, exc):
+            raise
+
+        fallback_args = clone_args_with_overrides(args, cookies_from_browser="none")
+        print(
+            "警告: Safari cookies 因 macOS 权限限制不可读，"
+            "已自动跳过 Safari cookies 并重试。"
+        )
+        return action(fallback_args), fallback_args
+
+
 def build_ydl_options(args: argparse.Namespace) -> tuple[dict, str]:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -331,7 +362,8 @@ def main() -> int:
     args = parse_args()
     url = normalize_youtube_input(args.youtube_url)
     YoutubeDL = _load_yt_dlp()
-    ydl_opts, format_selector = build_ydl_options(args)
+    active_args = args
+    ydl_opts, format_selector = build_ydl_options(active_args)
     configured_runtimes = list((ydl_opts.get("js_runtimes") or {}).keys())
 
     if configured_runtimes:
@@ -343,36 +375,46 @@ def main() -> int:
             "请安装 deno 或 node，或显式传 --js-runtime node。"
         )
 
-    browser_name = normalize_browser_name(args.cookies_from_browser)
+    browser_name = normalize_browser_name(active_args.cookies_from_browser)
 
-    if browser_name and args.cookies:
+    if browser_name and active_args.cookies:
         print("提示: 已同时传入 --cookies-from-browser 和 --cookies，yt-dlp 会优先使用显式 cookies 文件。")
 
     try:
-        with YoutubeDL(ydl_opts) as ydl:
-            if args.list_formats:
-                print(f"格式选择器: {format_selector}")
-                ydl.download([url])
-                return 0
+        def run_ydl(current_args: argparse.Namespace):
+            current_ydl_opts, current_format_selector = build_ydl_options(current_args)
+            with YoutubeDL(current_ydl_opts) as ydl:
+                if current_args.list_formats:
+                    print(f"格式选择器: {current_format_selector}")
+                    ydl.download([url])
+                    return None, current_format_selector
 
-            info = ydl.extract_info(url, download=True)
-            downloaded_file = find_downloaded_file(info, Path(args.output_dir))
-            if downloaded_file is None:
-                raise RuntimeError("下载完成后未定位到输出文件。")
+                info = ydl.extract_info(url, download=True)
+                return info, current_format_selector
 
-            try:
-                validate_mp4_output(downloaded_file)
-            except Exception:
-                downloaded_file.unlink(missing_ok=True)
-                raise
+        result, active_args = run_with_safari_cookie_fallback(active_args, run_ydl)
+        info, format_selector = result
 
-            title = info.get("title") or extract_youtube_video_id(url)
-            print(f"已下载视频: {title}")
-            print(f"输出文件: {downloaded_file.resolve()}")
-            print(f"格式策略: {format_selector}")
+        if active_args.list_formats:
+            return 0
+
+        downloaded_file = find_downloaded_file(info, Path(active_args.output_dir))
+        if downloaded_file is None:
+            raise RuntimeError("下载完成后未定位到输出文件。")
+
+        try:
+            validate_mp4_output(downloaded_file)
+        except Exception:
+            downloaded_file.unlink(missing_ok=True)
+            raise
+
+        title = info.get("title") or extract_youtube_video_id(url)
+        print(f"已下载视频: {title}")
+        print(f"输出文件: {downloaded_file.resolve()}")
+        print(f"格式策略: {format_selector}")
     except Exception as exc:
         message = str(exc)
-        if "Cookies.binarycookies" in message and "Operation not permitted" in message:
+        if is_safari_cookie_permission_error(exc):
             raise RuntimeError(
                 "无法读取 Safari cookies。macOS 拒绝了 Cookies.binarycookies 的访问权限。\n"
                 "可选解决方案：\n"
