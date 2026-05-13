@@ -109,7 +109,7 @@
                   <input
                     ref="homeVideoInputRef"
                     type="file"
-                    accept="video/*"
+                    :accept="homeVideoAccept"
                     style="display: none"
                     :disabled="homeParseLoading"
                     @change="handleHomeVideoFileChange"
@@ -1410,6 +1410,7 @@ const PLAYER_SUBTITLE_FONT_SCALE_DISPLAY_OFFSET = 0.25;
 const PLAYER_SUBTITLE_FONT_SCALE_MIN = Math.min(...PLAYER_SUBTITLE_FONT_SCALE_OPTIONS);
 const PLAYER_SUBTITLE_FONT_SCALE_MAX = Math.max(...PLAYER_SUBTITLE_FONT_SCALE_OPTIONS);
 const DEFAULT_SUBTITLE_ACCEPT = ".srt,.vtt,.json";
+const LOCAL_VIDEO_ACCEPT = "video/*,.mkv,.mka,.mks,video/x-matroska,video/matroska";
 const ENABLE_YOUTUBE_OEMBED_TITLE_FETCH = false;
 const PLAYER_PLAYBACK_RATES = [0.5, 1, 1.25, 1.5, 2];
 const MAX_FAMILIARITY_LEVEL = 5;
@@ -1588,6 +1589,7 @@ const homeAnalyzeLoading = ref(false);
 const homeError = ref("");
 const homeVideoFile = ref(null);
 const homeVideoFileName = ref("");
+const homeVideoAccept = LOCAL_VIDEO_ACCEPT;
 const homeVideoInputRef = ref(null);
 const homeParsedUrl = ref("");
 const homeParsedTitle = ref("");
@@ -3637,10 +3639,46 @@ function openLocalVideoDb() {
   });
 }
 
+function getFileExtension(fileName = "") {
+  const match = String(fileName || "").toLowerCase().match(/\.([a-z0-9]+)$/);
+  return match ? match[1] : "";
+}
+
+function getLocalVideoPlaybackBlob(file) {
+  if (!(file instanceof Blob)) {
+    return file;
+  }
+
+  const extension = getFileExtension(file.name || "");
+  if (extension === "mkv" && file.type !== "video/x-matroska") {
+    return new Blob([file], { type: "video/x-matroska" });
+  }
+
+  return file;
+}
+
+function getLocalVideoCompatibilityHint(file) {
+  const extension = getFileExtension(file?.name || "");
+  if (extension !== "mkv") {
+    return "";
+  }
+
+  const probe = document.createElement("video");
+  const matroskaSupport =
+    probe.canPlayType("video/x-matroska") || probe.canPlayType("video/matroska");
+  if (matroskaSupport) {
+    return "";
+  }
+
+  return "MKV has been accepted. Browser playback still depends on the MKV codecs/container support. If this file does not start, remux it to MP4/WebM or download an MP4/WebM version.";
+}
+
 async function saveLocalVideoBlob(materialId, blob) {
   if (!materialId || !(blob instanceof Blob)) {
     throw new Error("Missing local video data.");
   }
+
+  const normalizedBlob = getLocalVideoPlaybackBlob(blob);
 
   const db = await openLocalVideoDb();
   return new Promise((resolve, reject) => {
@@ -3648,7 +3686,7 @@ async function saveLocalVideoBlob(materialId, blob) {
     const store = tx.objectStore(LOCAL_VIDEO_STORE_NAME);
     const request = store.put({
       id: materialId,
-      blob,
+      blob: normalizedBlob,
       updatedAt: Date.now(),
     });
     request.onerror = () => {
@@ -5732,6 +5770,8 @@ async function importHomeMaterial() {
 
   try {
     const lines = await parseSubtitleFile(homeSubtitleFile.value);
+    const videoBlob = getLocalVideoPlaybackBlob(homeVideoFile.value);
+    const compatibilityHint = getLocalVideoCompatibilityHint(homeVideoFile.value);
     const materialId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const materialUrl = buildLocalMaterialUrl(materialId);
     const title = deriveLocalMaterialTitle({
@@ -5740,7 +5780,7 @@ async function importHomeMaterial() {
       subtitleFileName: homeSubtitleFileName.value,
     });
 
-    await saveLocalVideoBlob(materialId, homeVideoFile.value);
+    await saveLocalVideoBlob(materialId, videoBlob);
 
     const entry = upsertPlayerHistory({
       url: materialUrl,
@@ -5758,8 +5798,12 @@ async function importHomeMaterial() {
     homeParsedTitle.value = title;
     homeParsedLines.value = lines;
 
-    await openLocalMaterialInPlayer(entry, { videoBlob: homeVideoFile.value });
-    message.success(`Imported and cached: ${title}`);
+    await openLocalMaterialInPlayer(entry, { videoBlob });
+    if (compatibilityHint) {
+      message.warning(compatibilityHint, 8);
+    } else {
+      message.success(`Imported and cached: ${title}`);
+    }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     homeError.value = `Import failed: ${errorMsg}`;
@@ -7063,6 +7107,11 @@ function attachPlayerVideoEvents(videoEl) {
   const handleDurationChange = () => {
     syncPlayerTimelineInfo();
   };
+  const handleVideoError = () => {
+    playerInitError.value =
+      "This video could not be decoded by the browser. MKV files are selectable now, but playback still requires browser-supported codecs/container. Try MP4/WebM if this MKV does not play.";
+    playerError.value = `Player initialization failed: ${playerInitError.value}`;
+  };
   const handleWebkitBeginFullscreen = () => {
     playerIsFullscreen.value = true;
   };
@@ -7076,6 +7125,7 @@ function attachPlayerVideoEvents(videoEl) {
   videoEl.addEventListener("ratechange", handleRateChange);
   videoEl.addEventListener("ended", handleEnded);
   videoEl.addEventListener("durationchange", handleDurationChange);
+  videoEl.addEventListener("error", handleVideoError);
   videoEl.addEventListener("webkitbeginfullscreen", handleWebkitBeginFullscreen);
   videoEl.addEventListener("webkitendfullscreen", handleWebkitEndFullscreen);
 
@@ -7086,6 +7136,7 @@ function attachPlayerVideoEvents(videoEl) {
     videoEl.removeEventListener("ratechange", handleRateChange);
     videoEl.removeEventListener("ended", handleEnded);
     videoEl.removeEventListener("durationchange", handleDurationChange);
+    videoEl.removeEventListener("error", handleVideoError);
     videoEl.removeEventListener("webkitbeginfullscreen", handleWebkitBeginFullscreen);
     videoEl.removeEventListener("webkitendfullscreen", handleWebkitEndFullscreen);
   };
