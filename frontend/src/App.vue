@@ -109,7 +109,6 @@
                   <input
                     ref="homeVideoInputRef"
                     type="file"
-                    :accept="homeVideoAccept"
                     style="display: none"
                     :disabled="homeParseLoading"
                     @change="handleHomeVideoFileChange"
@@ -1410,7 +1409,6 @@ const PLAYER_SUBTITLE_FONT_SCALE_DISPLAY_OFFSET = 0.25;
 const PLAYER_SUBTITLE_FONT_SCALE_MIN = Math.min(...PLAYER_SUBTITLE_FONT_SCALE_OPTIONS);
 const PLAYER_SUBTITLE_FONT_SCALE_MAX = Math.max(...PLAYER_SUBTITLE_FONT_SCALE_OPTIONS);
 const DEFAULT_SUBTITLE_ACCEPT = ".srt,.vtt,.json";
-const LOCAL_VIDEO_ACCEPT = "video/*,.mkv,.mka,.mks,video/x-matroska,video/matroska";
 const ENABLE_YOUTUBE_OEMBED_TITLE_FETCH = false;
 const PLAYER_PLAYBACK_RATES = [0.5, 1, 1.25, 1.5, 2];
 const MAX_FAMILIARITY_LEVEL = 5;
@@ -1589,7 +1587,6 @@ const homeAnalyzeLoading = ref(false);
 const homeError = ref("");
 const homeVideoFile = ref(null);
 const homeVideoFileName = ref("");
-const homeVideoAccept = LOCAL_VIDEO_ACCEPT;
 const homeVideoInputRef = ref(null);
 const homeParsedUrl = ref("");
 const homeParsedTitle = ref("");
